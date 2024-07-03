@@ -9,6 +9,7 @@ def load_data():
 
 data = load_data()
 
+
 # Ajustar os nomes das colunas se necessário
 data.columns = [col.strip() for col in data.columns]  # Remover espaços extras dos nomes das colunas
 
@@ -26,12 +27,19 @@ data.rename(columns={'Marca': 'marca', 'Modelo': 'modelo', 'Datafinalizacao': 'd
 st.title('Dashboard de Carros Finalizados')
 
 # Filtros
-marca = st.selectbox('Escolha a marca', options=data['marca'].unique())
-modelos_filtrados = data[data['marca'] == marca]['modelo'].unique()
-modelos_selecionados = st.multiselect('Escolha os modelos', options=modelos_filtrados)
+marca = st.selectbox('Escolha a marca', options=['Todos'] + list(data['marca'].unique()))
+if marca == 'Todos':
+    modelos_selecionados = st.multiselect('Escolha os modelos', options=data['modelo'].unique())
+else:
+    modelos_filtrados = data[data['marca'] == marca]['modelo'].unique()
+    modelos_selecionados = st.multiselect('Escolha os modelos', options=modelos_filtrados)
 
-# Filtrar dados com base nos modelos selecionados
-if modelos_selecionados:
+# Filtrar dados com base nos filtros aplicados
+if marca == 'Todos' and modelos_selecionados:
+    filtered_data = data[data['modelo'].isin(modelos_selecionados)]
+elif marca == 'Todos':
+    filtered_data = data
+elif modelos_selecionados:
     filtered_data = data[(data['marca'] == marca) & (data['modelo'].isin(modelos_selecionados))]
 else:
     filtered_data = data[data['marca'] == marca]
@@ -65,11 +73,14 @@ st.altair_chart(chart_mes, use_container_width=True)
 # Seletor de Semana
 selected_week = st.selectbox(
     'Escolha uma semana',
-    options=sorted(data['semana'].unique())
+    options=['Todos'] + sorted(data['semana'].unique())
 )
 
 # Filtrar dados para a semana selecionada
-filtered_data_by_week = data[data['semana'] == selected_week]
+if selected_week == 'Todos':
+    filtered_data_by_week = data
+else:
+    filtered_data_by_week = data[data['semana'] == selected_week]
 
 # Gráfico de Finalizações por Semana
 st.subheader(f'Finalizações para a Semana {selected_week}')
@@ -110,4 +121,3 @@ chart_marca = alt.Chart(finalizados_por_marca).mark_arc(innerRadius=50).encode(
     title='Quantidade de Finalizações por Marca'
 )
 st.altair_chart(chart_marca, use_container_width=True)
-
