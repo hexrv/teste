@@ -14,6 +14,11 @@ def check_login(username, password):
 def load_data():
     return pd.read_csv('carga.csv', delimiter=';')
 
+# Função para carregar dados do prazo
+@st.cache_data
+def load_prazo_data():
+    return pd.read_csv('prazo.csv', delimiter=';')
+
 # Inicializar o estado de sessão para login
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -42,22 +47,22 @@ else:
     # Selecionar o dashboard no menu lateral
     dashboard = st.sidebar.radio('Selecionar Dashboard', ['Veículos Finalizados', 'Termômetro de Prazo'])
 
-    # Carregar os dados após login
-    data = load_data()
-
-    # Ajustar os nomes das colunas se necessário
-    data.columns = [col.strip() for col in data.columns]  # Remover espaços extras dos nomes das colunas
-
-    # Certifique-se de que as colunas têm o tipo de dado correto
-    if 'Datafinalizacao' in data.columns:
-        data['Datafinalizacao'] = pd.to_datetime(data['Datafinalizacao'], format='%d/%m/%Y %H:%M', dayfirst=True)
-    else:
-        st.error("Coluna 'Datafinalizacao' não encontrada no CSV.")
-
-    # Renomear as colunas para facilitar o uso
-    data.rename(columns={'Marca': 'marca', 'Modelo': 'modelo', 'Datafinalizacao': 'data_finalizacao'}, inplace=True)
-
     if dashboard == 'Veículos Finalizados':
+        # Carregar os dados após login
+        data = load_data()
+
+        # Ajustar os nomes das colunas se necessário
+        data.columns = [col.strip() for col in data.columns]  # Remover espaços extras dos nomes das colunas
+
+        # Certifique-se de que as colunas têm o tipo de dado correto
+        if 'Datafinalizacao' in data.columns:
+            data['Datafinalizacao'] = pd.to_datetime(data['Datafinalizacao'], format='%d/%m/%Y %H:%M', dayfirst=True)
+        else:
+            st.error("Coluna 'Datafinalizacao' não encontrada no CSV.")
+
+        # Renomear as colunas para facilitar o uso
+        data.rename(columns={'Marca': 'marca', 'Modelo': 'modelo', 'Datafinalizacao': 'data_finalizacao'}, inplace=True)
+
         # Streamlit
         st.title('Dashboard de Carros Finalizados')
 
@@ -161,24 +166,29 @@ else:
         st.altair_chart(chart_marca, use_container_width=True)
 
     elif dashboard == 'Termômetro de Prazo':
-        st.title('Termômetro de Prazo')
-        st.write('Aqui você poderá visualizar o prazo de finalização dos veículos.')
+        # Carregar os dados de prazo
+        prazo_data = load_prazo_data()
 
-        # Lógica e visualizações do Termômetro de Prazo
-        # (Esta parte ainda precisa ser implementada de acordo com os requisitos específicos do Termômetro de Prazo)
+        # Verificar se o CSV contém as colunas esperadas
+        if 'Prazo' not in prazo_data.columns or 'Quantidade' not in prazo_data.columns:
+            st.error("O CSV de prazo deve conter as colunas 'Prazo' e 'Quantidade'.")
+        else:
+            # Streamlit
+            st.title('Termômetro de Prazo')
+            st.write('Aqui você poderá visualizar o prazo de finalização dos veículos.')
 
-        # Exemplo de gráfico temporário
-        st.subheader('Exemplo de Gráfico do Termômetro de Prazo')
-        example_data = pd.DataFrame({
-            'Prazo': ['No prazo', 'Atrasado'],
-            'Quantidade': [80, 20]
-        })
-        chart_prazo = alt.Chart(example_data).mark_bar().encode(
-            x=alt.X('Prazo:N', title='Prazo'),
-            y=alt.Y('Quantidade:Q', title='Quantidade'),
-            color=alt.Color('Prazo:N', title='Prazo'),
-            tooltip=['Prazo', 'Quantidade']
-        ).properties(
-            title='Exemplo de Termômetro de Prazo'
-        )
-        st.altair_chart(chart_prazo, use_container_width=True)
+            # Exibir os dados do prazo
+            st.write("Dados do Prazo")
+            st.dataframe(prazo_data)
+
+            # Gráfico de Prazo
+            st.subheader('Distribuição do Prazo')
+            chart_prazo = alt.Chart(prazo_data).mark_bar().encode(
+                x=alt.X('Prazo:N', title='Prazo'),
+                y=alt.Y('Quantidade:Q', title='Quantidade'),
+                color=alt.Color('Prazo:N', legend=alt.Legend(title='Prazo')),
+                tooltip=['Prazo', 'Quantidade']
+            ).properties(
+                title='Distribuição de Quantidade por Prazo'
+            )
+            st.altair_chart(chart_prazo, use_container_width=True)
