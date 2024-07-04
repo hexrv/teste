@@ -92,6 +92,10 @@ else:
         # Contagem de finalizações por marca
         finalizados_por_marca = data.groupby('marca').size().reset_index(name='quantidade')
 
+        # Exibição dos dados filtrados
+        st.write("Dados Filtrados")
+        st.dataframe(filtered_data)
+
         # Gráfico de Finalizações por Mês
         st.subheader('Finalizações por Mês')
         chart_mes = alt.Chart(finalizados_por_mes).mark_bar().encode(
