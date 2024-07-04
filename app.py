@@ -12,35 +12,52 @@ def check_login(username, password):
 # Função para carregar os dados
 @st.cache_data
 def load_data():
-    return pd.read_csv('carga.csv', delimiter=',')
+    return pd.read_csv('carga.csv', delimiter=';')
+
+# Inicializar o estado de sessão para login
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
 
 # Interface de login
-st.title('Login para o Dashboard')
+if not st.session_state.logged_in:
+    st.title('Login para o Dashboard')
 
-# Campos de entrada para nome de usuário e senha
-username = st.text_input('Nome de Usuário')
-password = st.text_input('Senha', type='password')
+    # Campos de entrada para nome de usuário e senha
+    username = st.text_input('Nome de Usuário')
+    password = st.text_input('Senha', type='password')
 
-# Verificar credenciais
-if st.button('Entrar'):
-    if check_login(username, password):
-        st.success('Login bem-sucedido! Carregando dados...')
-        
-        # Carregar os dados após login
-        data = load_data()
-
-        # Ajustar os nomes das colunas se necessário
-        data.columns = [col.strip() for col in data.columns]  # Remover espaços extras dos nomes das colunas
-
-        # Certifique-se de que as colunas têm o tipo de dado correto
-        if 'Datafinalizacao' in data.columns:
-            data['Datafinalizacao'] = pd.to_datetime(data['Datafinalizacao'], format='%d/%m/%Y %H:%M', dayfirst=True)
+    # Verificar credenciais
+    if st.button('Entrar'):
+        if check_login(username, password):
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.experimental_rerun()  # Recarregar a página após login bem-sucedido
         else:
-            st.error("Coluna 'Datafinalizacao' não encontrada no CSV.")
+            st.error('Nome de usuário ou senha incorretos.')
+else:
+    # Mostrar o nome do usuário no menu lateral
+    st.sidebar.title(f'Bem-vindo, {st.session_state.username}!')
 
-        # Renomear as colunas para facilitar o uso
-        data.rename(columns={'Marca': 'marca', 'Modelo': 'modelo', 'Datafinalizacao': 'data_finalizacao'}, inplace=True)
+    # Selecionar o dashboard no menu lateral
+    dashboard = st.sidebar.radio('Selecionar Dashboard', ['Veículos Finalizados', 'Termômetro de Prazo'])
 
+    # Carregar os dados após login
+    data = load_data()
+
+    # Ajustar os nomes das colunas se necessário
+    data.columns = [col.strip() for col in data.columns]  # Remover espaços extras dos nomes das colunas
+
+    # Certifique-se de que as colunas têm o tipo de dado correto
+    if 'Datafinalizacao' in data.columns:
+        data['Datafinalizacao'] = pd.to_datetime(data['Datafinalizacao'], format='%d/%m/%Y %H:%M', dayfirst=True)
+    else:
+        st.error("Coluna 'Datafinalizacao' não encontrada no CSV.")
+
+    # Renomear as colunas para facilitar o uso
+    data.rename(columns={'Marca': 'marca', 'Modelo': 'modelo', 'Datafinalizacao': 'data_finalizacao'}, inplace=True)
+
+    if dashboard == 'Veículos Finalizados':
         # Streamlit
         st.title('Dashboard de Carros Finalizados')
 
@@ -143,5 +160,25 @@ if st.button('Entrar'):
         )
         st.altair_chart(chart_marca, use_container_width=True)
 
-    else:
-        st.error('Nome de usuário ou senha incorretos.')
+    elif dashboard == 'Termômetro de Prazo':
+        st.title('Termômetro de Prazo')
+        st.write('Aqui você poderá visualizar o prazo de finalização dos veículos.')
+
+        # Lógica e visualizações do Termômetro de Prazo
+        # (Esta parte ainda precisa ser implementada de acordo com os requisitos específicos do Termômetro de Prazo)
+
+        # Exemplo de gráfico temporário
+        st.subheader('Exemplo de Gráfico do Termômetro de Prazo')
+        example_data = pd.DataFrame({
+            'Prazo': ['No prazo', 'Atrasado'],
+            'Quantidade': [80, 20]
+        })
+        chart_prazo = alt.Chart(example_data).mark_bar().encode(
+            x=alt.X('Prazo:N', title='Prazo'),
+            y=alt.Y('Quantidade:Q', title='Quantidade'),
+            color=alt.Color('Prazo:N', title='Prazo'),
+            tooltip=['Prazo', 'Quantidade']
+        ).properties(
+            title='Exemplo de Termômetro de Prazo'
+        )
+        st.altair_chart(chart_prazo, use_container_width=True)
