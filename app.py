@@ -9,12 +9,12 @@ def check_login(username, password):
     valid_password = "password123"
     return username == valid_username and password == valid_password
 
-# Função para carregar os dados
+# Função para carregar os dados de veículos
 @st.cache_data
 def load_data():
     return pd.read_csv('carga.csv', delimiter=';')
 
-# Função para carregar dados do prazo
+# Função para carregar os dados de prazo
 @st.cache_data
 def load_prazo_data():
     return pd.read_csv('prazo.csv', delimiter=';')
@@ -106,7 +106,7 @@ else:
         chart_mes = alt.Chart(finalizados_por_mes).mark_bar().encode(
             x=alt.X('mes:O', title='Mês', axis=alt.Axis(labelAngle=0)),  # Ajustar ângulo dos rótulos para horizontal
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('mes:N', title='Mês'),  # Adicionar cor por mês
+            color=alt.Color('mes:N', title='Mês'),
             tooltip=['mes', 'quantidade']
         ).properties(
             title='Quantidade de Finalizações por Mês'
@@ -147,7 +147,7 @@ else:
         chart_dia = alt.Chart(filtered_data_by_date).mark_bar().encode(
             x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=0)),  # Ajustar ângulo dos rótulos para horizontal
             y=alt.Y('count():Q', title='Quantidade'),
-            color=alt.Color('marca:N', title='Marca'),  # Adicionar cor por marca
+            color=alt.Color('marca:N', title='Marca'),
             tooltip=['marca', 'count()']
         ).properties(
             title=f'Quantidade de Finalizações para o Dia {selected_date.strftime("%d/%m/%Y")}'
@@ -169,26 +169,70 @@ else:
         # Carregar os dados de prazo
         prazo_data = load_prazo_data()
 
+        
+
+        # Remover espaços extras dos nomes das colunas
+        prazo_data.columns = [col.strip() for col in prazo_data.columns]
+
         # Verificar se o CSV contém as colunas esperadas
-        if 'Prazo' not in prazo_data.columns or 'Quantidade' not in prazo_data.columns:
-            st.error("O CSV de prazo deve conter as colunas 'Prazo' e 'Quantidade'.")
+        expected_columns = ['Resumo', 'Datacontrato', 'Marca', 'Modelo', 'Datafinalizacao', 'prazo']
+        missing_columns = [col for col in expected_columns if col not in prazo_data.columns]
+        if missing_columns:
+            st.error(f"Colunas ausentes no CSV: {', '.join(missing_columns)}")
         else:
-            # Streamlit
-            st.title('Termômetro de Prazo')
-            st.write('Aqui você poderá visualizar o prazo de finalização dos veículos.')
+            # Verificar se as colunas estão no formato correto
+            prazo_data['Datafinalizacao'] = pd.to_datetime(prazo_data['Datafinalizacao'], format='%d/%m/%Y %H:%M', errors='coerce')
+            prazo_data['Datacontrato'] = pd.to_datetime(prazo_data['Datacontrato'], format='%d/%m/%Y', errors='coerce')
+            prazo_data['prazo'] = pd.to_numeric(prazo_data['prazo'], errors='coerce')
 
-            # Exibir os dados do prazo
-            st.write("Dados do Prazo")
-            st.dataframe(prazo_data)
-
-            # Gráfico de Prazo
-            st.subheader('Distribuição do Prazo')
-            chart_prazo = alt.Chart(prazo_data).mark_bar().encode(
-                x=alt.X('Prazo:N', title='Prazo'),
-                y=alt.Y('Quantidade:Q', title='Quantidade'),
-                color=alt.Color('Prazo:N', legend=alt.Legend(title='Prazo')),
-                tooltip=['Prazo', 'Quantidade']
-            ).properties(
-                title='Distribuição de Quantidade por Prazo'
+            # Adicionar coluna de status
+            prazo_data['status'] = prazo_data.apply(
+                lambda row: 'Dentro do Prazo' if pd.notna(row['prazo']) and pd.notna(row['Datacontrato']) and pd.notna(row['Datafinalizacao']) and row['Datafinalizacao'] <= row['Datacontrato'] + pd.Timedelta(days=row['prazo'])
+                else 'Fora do Prazo' if pd.notna(row['prazo']) and pd.notna(row['Datacontrato']) and pd.notna(row['Datafinalizacao']) and row['Datafinalizacao'] > row['Datacontrato'] + pd.Timedelta(days=row['prazo'])
+                else 'Antecipado' if pd.notna(row['Datacontrato']) and pd.notna(row['Datafinalizacao']) and row['Datafinalizacao'] < row['Datacontrato']
+                else 'Indeterminado', axis=1
             )
-            st.altair_chart(chart_prazo, use_container_width=True)
+
+            # Contagem de status
+            status_counts = prazo_data['status'].value_counts().reset_index()
+            status_counts.columns = ['status', 'quantidade']
+
+            # Gráfico de barras dos status
+            st.subheader('Termômetro de Prazo')
+            chart_status = alt.Chart(status_counts).mark_bar().encode(
+                x=alt.X('status:N', title='Status', axis=alt.Axis(labelAngle=0)),  # Ajustar ângulo dos rótulos para horizontal
+                y=alt.Y('quantidade:Q', title='Quantidade'),
+                color='status:N',
+                tooltip=['status', 'quantidade']
+            ).properties(
+                title='Quantidade de Veículos por Status'
+            )
+            st.altair_chart(chart_status, use_container_width=True)
+
+            # Adicionar coluna de mês para filtrar os dados
+            prazo_data['mes'] = prazo_data['Datafinalizacao'].dt.to_period('M').astype(str)
+
+            # Seletor de mês
+            selected_month = st.selectbox(
+                'Escolha um mês',
+                options=sorted(prazo_data['mes'].unique())
+            )
+
+            # Filtrar dados pelo mês selecionado
+            filtered_data_by_month = prazo_data[prazo_data['mes'] == selected_month]
+
+            # Contagem de status por mês
+            status_counts_month = filtered_data_by_month['status'].value_counts().reset_index()
+            status_counts_month.columns = ['status', 'quantidade']
+
+            # Gráfico de barras dos status por mês
+            st.subheader(f'Termômetro de Prazo para {selected_month}')
+            chart_status_month = alt.Chart(status_counts_month).mark_bar().encode(
+                x=alt.X('status:N', title='Status', axis=alt.Axis(labelAngle=0)),  # Ajustar ângulo dos rótulos para horizontal
+                y=alt.Y('quantidade:Q', title='Quantidade'),
+                color='status:N',
+                tooltip=['status', 'quantidade']
+            ).properties(
+                title=f'Quantidade de Veículos por Status em {selected_month}'
+            )
+            st.altair_chart(chart_status_month, use_container_width=True)
