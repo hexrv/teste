@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
+import boto3  # Importar boto3 para definir a região
+
+# Definir a região
+boto3.setup_default_session(region_name='us-west-2')  # Substitua 'us-west-2' pela sua região
 
 # Dicionário de usuários
 USERS = {
