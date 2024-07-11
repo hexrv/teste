@@ -184,7 +184,7 @@ else:
             tooltip=['marca', 'modelo', 'quantidade']
         ).properties(
             title='Quantidade de Finalizações por Marca e Modelo'
-        )
+        ) 
         st.altair_chart(chart_marca_modelo, use_container_width=True)
 
         # Média de Tempo de Finalização por Marca
@@ -311,6 +311,3 @@ else:
                 title='Evolução dos Status ao Longo do Tempo'
             )
             st.altair_chart(chart_evolucao_status, use_container_width=True)
-
-
-
