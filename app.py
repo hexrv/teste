@@ -3,6 +3,14 @@ import pandas as pd
 import altair as alt
 import awswrangler as wr
 
+# Dicionário de usuários
+USERS = {
+    "Henri.Santos": "Carbon@2024",
+    "Cassio.Luis": "Carbon@2023",
+    "Rafael.Augusto": "Carbon@2022",
+    "Marcelo.Alves": "Carbon@2021"
+}
+
 # Função para carregar dados da AWS Athena com caching
 @st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
 def load_data_from_athena():
@@ -159,7 +167,7 @@ def process_and_display_data(data, dashboard):
         data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
         calor_prazo = data_filtrada_calor.groupby(['ano', 'mes', 'dentro_prazo']).size().reset_index(name='quantidade')
         chart_calor = alt.Chart(calor_prazo).mark_rect().encode(
-            x=alt.X('mes:N', title='Mês', axis=alt.Axis(labelAngle=0)),
+            x=alt.X('mes:N', title='Mês', axis=alt.Axis(labelAngle=45)),
             y=alt.Y('ano:N', title='Ano'),
             color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='viridis')),
             tooltip=['ano', 'mes', 'dentro_prazo', 'quantidade']
@@ -182,7 +190,7 @@ def login():
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        if username == "henri.santos" and password == "Carbon@2024":
+        if username in USERS and USERS[username] == password:
             st.session_state.logged_in = True
             st.session_state.username = username  # Salva o nome do usuário no estado da sessão
             st.experimental_rerun()  # Força a atualização da página após login
