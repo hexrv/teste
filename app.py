@@ -4,12 +4,6 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
-# Configurar o layout da página
-st.set_page_config(
-    page_title="Dados-CORE",
-    page_icon="icone.png" # Se você quiser adicionar um ícone à aba do navegador 
-)
-
 # Dicionário de usuários
 USERS = {
     "Henri.Santos": "Carbon@2024",
