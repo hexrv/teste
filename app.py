@@ -111,7 +111,17 @@ def process_and_display_data(data, dashboard):
         mes_selecionado_modelo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_modelo_selectbox')
         marca_selecionada = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_modelo_selectbox')
         data_filtrada_modelo = data[(data['mes'] == mes_selecionado_modelo) & (data['marca'] == marca_selecionada)]
+        
+        if data_filtrada_modelo.empty:
+            st.warning("Não há dados disponíveis para a combinação selecionada de mês e marca.")
+            return
+        
         modelo_count = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
+        
+        if modelo_count.empty:
+            st.warning("Não há dados disponíveis para o modelo.")
+            return
+        
         chart_modelo = alt.Chart(modelo_count).mark_bar().encode(
             x=alt.X('modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('quantidade:Q', title='Quantidade'),
@@ -136,7 +146,7 @@ def process_and_display_data(data, dashboard):
         chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
             x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
+            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
             tooltip=['dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
@@ -209,6 +219,7 @@ else:
     
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
+
 
 
 
