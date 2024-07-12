@@ -90,8 +90,7 @@ def process_and_display_data(data, dashboard):
 
         # 3. Veículos Finalizados por Marca
         st.subheader('Veículos Finalizados por Marca')
-        mes_atual = sorted(data['mes'].unique())[-1]  # Seleciona o mês mais atual
-        mes_selecionado_marca = st.selectbox('Selecione o Mês', sorted(data['mes'].unique()), index=len(sorted(data['mes'].unique())) - 1, key='mes_selecionado_marca')
+        mes_selecionado_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_selecionado_marca')
         data_filtrada_marca = data[data['mes'] == mes_selecionado_marca]
         marca_count = data_filtrada_marca.groupby('marca').size().reset_index(name='quantidade')
         chart_marca = alt.Chart(marca_count).mark_bar().encode(
@@ -107,8 +106,7 @@ def process_and_display_data(data, dashboard):
 
         # 4. Veículos Finalizados por Modelo
         st.subheader('Veículos Finalizados por Modelo')
-        mes_atual = sorted(data['mes'].unique())[-1]  # Seleciona o mês mais atual
-        mes_selecionado_modelo = st.selectbox('Selecione o Mês', sorted(data['mes'].unique()), index=len(sorted(data['mes'].unique())) - 1, key='mes_modelo_selectbox')
+        mes_selecionado_modelo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_modelo_selectbox')
         marca_selecionada = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_modelo_selectbox')
         data_filtrada_modelo = data[(data['mes'] == mes_selecionado_modelo) & (data['marca'] == marca_selecionada)]
         modelo_count = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
@@ -146,11 +144,8 @@ def process_and_display_data(data, dashboard):
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_marca_selectbox')
-        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
-        data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
-        prazo_por_marca = data_filtrada_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        prazo_por_marca_chart = alt.Chart(prazo_por_marca).mark_bar().encode(
+        data_filtrada_prazo_marca = data_filtrada_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
+        prazo_por_marca_chart = alt.Chart(data_filtrada_prazo_marca).mark_bar().encode(
             x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
@@ -163,7 +158,6 @@ def process_and_display_data(data, dashboard):
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_calor_selectbox')
         data_filtrada_calor = data[data['mes'] == mes_selecionado_prazo]
         data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
         heatmap_data = data_filtrada_calor.groupby(['mes', 'dentro_prazo']).size().reset_index(name='quantidade')
@@ -229,6 +223,7 @@ if __name__ == '__main__':
     else:
         st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
     main()
+
 
 
 
