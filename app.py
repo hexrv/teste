@@ -14,7 +14,7 @@ USERS = {
 
  
 # Função para carregar dados da AWS Athena com caching
-@st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
+@st.cache_data(ttl=150)  # Cache por 150 segundos (2,5 minutos)
 def load_data_from_athena():
     query = """
     SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
