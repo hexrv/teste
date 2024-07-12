@@ -181,7 +181,7 @@ def main():
     if st.session_state.logged_in:
         st.sidebar.title('Menu')
         menu_options = ['Veículos Finalizados', 'Termômetro de Prazo']
-        choice = st.sidebar.selectbox('Selecione o Dashboard', menu_options)
+        choice = st.sidebar.checkbox('Selecione o Dashboard', menu_options)
         
         if choice == 'Veículos Finalizados':
             data = load_data_from_athena()
