@@ -195,24 +195,16 @@ def main():
         st.session_state.logged_in = False
 
     if st.session_state.logged_in:
-        st.sidebar.title(f'Bem-vindo, {st.session_state.username}')
-        col1, col2 = st.sidebar.columns([1, 1])
-        with col1:
-            if st.button('Veículos Finalizados'):
-                st.session_state.dashboard = 'Veículos Finalizados'
-        with col2:
-            if st.button('Termômetro de Prazo'):
-                st.session_state.dashboard = 'Termômetro de Prazo'
-
-        if 'dashboard' in st.session_state:
-            if st.session_state.dashboard == 'Veículos Finalizados':
-                data = load_data_from_athena()
-                process_and_display_data(data, 'Veículos Finalizados')
-            elif st.session_state.dashboard == 'Termômetro de Prazo':
-                data = load_data_from_athena()
-                process_and_display_data(data, 'Termômetro de Prazo')
-        else:
-            st.write("Selecione uma opção no menu lateral.")
+        st.sidebar.title('Menu')
+        menu_options = ['Veículos Finalizados', 'Termômetro de Prazo']
+        choice = st.sidebar.selectbox('Selecione o Dashboard', menu_options)
+        
+        if choice == 'Veículos Finalizados':
+            data = load_data_from_athena()
+            process_and_display_data(data, 'Veículos Finalizados')
+        elif choice == 'Termômetro de Prazo':
+            data = load_data_from_athena()
+            process_and_display_data(data, 'Termômetro de Prazo')
     else:
         login_screen()
 
