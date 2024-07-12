@@ -173,27 +173,32 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(heatmap_chart, use_container_width=True)
 
+def login_screen():
+    st.title('Login')
+    st.write('Por favor, faça login para acessar o sistema.')
+
+    username = st.text_input('Usuário')
+    password = st.text_input('Senha', type='password')
+    login_button = st.button('Entrar')
+
+    if login_button:
+        if username in USERS and USERS[username] == password:
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.success(f'Bem-vindo, {username}!')
+            st.experimental_rerun()
+        else:
+            st.error('Usuário ou senha incorretos.')
+
 def main():
-    st.sidebar.title('Menu')
-    menu_options = ['Login', 'Veículos Finalizados', 'Termômetro de Prazo']
-    choice = st.sidebar.selectbox('Selecione o Dashboard', menu_options)
-    
-    if choice == 'Login':
-        st.sidebar.subheader('Login')
-        username = st.sidebar.text_input('Usuário')
-        password = st.sidebar.text_input('Senha', type='password')
-        login_button = st.sidebar.button('Entrar')
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
 
-        if login_button:
-            if username in USERS and USERS[username] == password:
-                st.success(f'Bem-vindo, {username}!')
-                st.session_state.logged_in = True
-                st.session_state.username = username
-                st.experimental_rerun()
-            else:
-                st.error('Usuário ou senha incorretos.')
-
-    elif st.session_state.get('logged_in'):
+    if st.session_state.logged_in:
+        st.sidebar.title('Menu')
+        menu_options = ['Veículos Finalizados', 'Termômetro de Prazo']
+        choice = st.sidebar.selectbox('Selecione o Dashboard', menu_options)
+        
         if choice == 'Veículos Finalizados':
             data = load_data_from_athena()
             process_and_display_data(data, 'Veículos Finalizados')
@@ -201,7 +206,7 @@ def main():
             data = load_data_from_athena()
             process_and_display_data(data, 'Termômetro de Prazo')
     else:
-        st.sidebar.warning('Por favor, faça login para acessar o dashboard.')
+        login_screen()
 
 if __name__ == '__main__':
     # Verifica e configura as credenciais da AWS
@@ -211,6 +216,7 @@ if __name__ == '__main__':
     else:
         st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
     main()
+
 
 
 
