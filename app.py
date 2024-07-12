@@ -180,36 +180,35 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(heatmap_chart, use_container_width=True)
 
-# Função de login (não alterada)
+# Função de login
 def login():
-    st.sidebar.title('Login')
-    username = st.sidebar.text_input('Usuário')
-    password = st.sidebar.text_input('Senha', type='password')
+    st.title('Login')
+    st.write("Por favor, faça login para acessar o sistema.")
+    username = st.text_input('Usuário')
+    password = st.text_input('Senha', type='password')
 
-    if st.sidebar.button('Login'):
+    if st.button('Login'):
         if USERS.get(username) == password:
             st.session_state['user'] = username
-            return True
+            st.experimental_rerun()
         else:
-            st.sidebar.error('Usuário ou senha inválidos')
-    return False
+            st.error('Usuário ou senha inválidos')
 
 # Verifica o login
 if 'user' not in st.session_state:
-    if not login():
-        st.stop()
-
-username = st.session_state['user']
-
-# Carrega os dados
-data = load_data_from_athena()
-
-# Cria o menu lateral
-st.sidebar.title(f"Bem-vindo, {username}!")
-dashboard = st.sidebar.radio("Selecione o Dashboard", ('Veículos Finalizados', 'Termômetro de Prazo'))
-
-# Processa e exibe os dados de acordo com o dashboard selecionado
-process_and_display_data(data, dashboard)
+    login()
+else:
+    username = st.session_state['user']
+    
+    # Carrega os dados
+    data = load_data_from_athena()
+    
+    # Cria o menu lateral
+    st.sidebar.title(f"Bem-vindo, {username}!")
+    dashboard = st.sidebar.radio("Selecione o Dashboard", ('Veículos Finalizados', 'Termômetro de Prazo'))
+    
+    # Processa e exibe os dados de acordo com o dashboard selecionado
+    process_and_display_data(data, dashboard)
 
 
 
