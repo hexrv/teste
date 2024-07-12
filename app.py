@@ -9,7 +9,7 @@ USERS = {
     "Henri.Santos": "Carbon@2024",
     "Cassio.Luis": "Carbon@2023",
     "Rafael.Augusto": "Carbon@2022",
-    "Marcelo.Alves": "Carbon@2021",
+    "Marcelo.Alves": "Carbon@2021"
 }
 
 # Função para carregar dados da AWS Athena com caching
