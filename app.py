@@ -196,13 +196,11 @@ def main():
 
     if st.session_state.logged_in:
         st.sidebar.title(f'Bem-vindo, {st.session_state.username}')
-        col1, col2 = st.sidebar.columns([1, 1])
-        with col1:
-            if st.button('Veículos Finalizados'):
-                st.session_state.dashboard = 'Veículos Finalizados'
-        with col2:
-            if st.button('Termômetro de Prazo'):
-                st.session_state.dashboard = 'Termômetro de Prazo'
+        st.sidebar.write("Escolha uma opção:")
+        if st.sidebar.button('Veículos Finalizados'):
+            st.session_state.dashboard = 'Veículos Finalizados'
+        if st.sidebar.button('Termômetro de Prazo'):
+            st.session_state.dashboard = 'Termômetro de Prazo'
 
         if 'dashboard' in st.session_state:
             if st.session_state.dashboard == 'Veículos Finalizados':
@@ -224,6 +222,7 @@ if __name__ == '__main__':
     else:
         st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
     main()
+
 
 
 
