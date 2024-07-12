@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
-import boto3
 from datetime import datetime
 
 # Dicionário de usuários
@@ -177,7 +176,7 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(heatmap_chart, use_container_width=True)
 
-# Função de login
+# Função de login (não alterada)
 def login():
     st.sidebar.title('Login')
     username = st.sidebar.text_input('Usuário')
@@ -186,8 +185,6 @@ def login():
     if st.sidebar.button('Login'):
         if USERS.get(username) == password:
             st.session_state['user'] = username
-            st.sidebar.write(f"Bem-vindo, {username}!")
-            st.sidebar.markdown("### Menu")
             return True
         else:
             st.sidebar.error('Usuário ou senha inválidos')
@@ -204,10 +201,12 @@ else:
 data = load_data_from_athena()
 
 # Cria o menu lateral
+st.sidebar.title(f"Bem-vindo, {username}!")
 dashboard = st.sidebar.radio("Selecione o Dashboard", ('Veículos Finalizados', 'Termômetro de Prazo'))
 
 # Processa e exibe os dados de acordo com o dashboard selecionado
 process_and_display_data(data, dashboard)
+
 
 
 
