@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
+import boto3
 
 # Dicionário de usuários
 USERS = {
@@ -133,7 +134,7 @@ def process_and_display_data(data, dashboard):
         chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
             x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category10')),
+            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
             tooltip=['dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
@@ -143,89 +144,73 @@ def process_and_display_data(data, dashboard):
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_marca_selectbox')
-        data_filtrada_prazo_marca = data[data['mes'] == mes_selecionado_prazo_marca]
-        data_filtrada_prazo_marca['dentro_prazo'] = data_filtrada_prazo_marca['data_finalizacao'] <= data_filtrada_prazo_marca['dt_contrato']
-        prazo_marca = data_filtrada_prazo_marca.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        prazo_marca['dentro_prazo'] = prazo_marca['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        chart_prazo_marca = alt.Chart(prazo_marca).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
+        data_filtrada_prazo_marca = data_filtrada_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
+        prazo_por_marca_chart = alt.Chart(data_filtrada_prazo_marca).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo'),
+            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
             tooltip=['marca', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
             title='Prazo por Marca'
         )
-        st.altair_chart(chart_prazo_marca, use_container_width=True)
+        st.altair_chart(prazo_por_marca_chart, use_container_width=True)
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        meses_disponiveis = sorted(data['mes'].unique())
-        intervalo_meses = st.multiselect('Selecione o(s) Mês(es)', meses_disponiveis, default=[meses_disponiveis[0]])
-        data_filtrada_calor = data[data['mes'].isin(intervalo_meses)]
+        data_filtrada_calor = data[data['mes'] == mes_selecionado_prazo]
         data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
-        calor_prazo = data_filtrada_calor.groupby(['ano', 'mes', 'dentro_prazo']).size().reset_index(name='quantidade')
-        chart_calor = alt.Chart(calor_prazo).mark_rect().encode(
-            x=alt.X('mes:N', title='Mês', axis=alt.Axis(labelAngle=45)),
-            y=alt.Y('ano:N', title='Ano'),
-            color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='viridis')),
-            tooltip=['ano', 'mes', 'dentro_prazo', 'quantidade']
+        heatmap_data = data_filtrada_calor.groupby(['mes', 'dentro_prazo']).size().reset_index(name='quantidade')
+        heatmap_chart = alt.Chart(heatmap_data).mark_rect().encode(
+            x=alt.X('mes:N', title='Mês'),
+            y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
+            color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='greenblue')),
+            tooltip=['mes', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
             height=chart_height,
-            title='Mapa de Calor - Prazo'
-        ).configure_view(
-            strokeOpacity=0
+            title='Mapa de Calor - Veículos Finalizados'
         )
-        st.altair_chart(chart_calor, use_container_width=True)
+        st.altair_chart(heatmap_chart, use_container_width=True)
 
-    elif dashboard == 'Lista de Acessos':
-        st.title('Lista de Acessos')
-        st.write("Conteúdo do dashboard Lista de Acessos ainda não implementado.")
+def main():
+    st.sidebar.title('Menu')
+    menu_options = ['Login', 'Veículos Finalizados', 'Termômetro de Prazo']
+    choice = st.sidebar.selectbox('Selecione o Dashboard', menu_options)
+    
+    if choice == 'Login':
+        st.sidebar.subheader('Login')
+        username = st.sidebar.text_input('Usuário')
+        password = st.sidebar.text_input('Senha', type='password')
+        login_button = st.sidebar.button('Entrar')
 
-# Função de login
-def login():
-    st.title("Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if username in USERS and USERS[username] == password:
-            st.session_state.logged_in = True
-            st.session_state.username = username  # Salva o nome do usuário no estado da sessão
-            st.experimental_rerun()  # Força a atualização da página após login
-        else:
-            st.error("Credenciais incorretas. Tente novamente.")
+        if login_button:
+            if username in USERS and USERS[username] == password:
+                st.success(f'Bem-vindo, {username}!')
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.experimental_rerun()
+            else:
+                st.error('Usuário ou senha incorretos.')
 
-# Configurações iniciais
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+    elif st.session_state.get('logged_in'):
+        if choice == 'Veículos Finalizados':
+            data = load_data_from_athena()
+            process_and_display_data(data, 'Veículos Finalizados')
+        elif choice == 'Termômetro de Prazo':
+            data = load_data_from_athena()
+            process_and_display_data(data, 'Termômetro de Prazo')
+    else:
+        st.sidebar.warning('Por favor, faça login para acessar o dashboard.')
 
-if 'username' not in st.session_state:
-    st.session_state.username = ""
-
-# Tela de login ou tela de dashboard
-if not st.session_state.logged_in:
-    login()
-else:
-    # Layout com menu lateral fixo
-    st.sidebar.title(f"Bem-vindo, {st.session_state.username}")  # Atualiza o título do menu lateral
-    st.sidebar.markdown("### Selecione o Dashboard")
-    dashboards = ["Veículos Finalizados", "Termômetro de Prazo", "Lista de Acessos"]
-    selected_dashboard = st.sidebar.radio("", dashboards)
-
-    # Layout com colunas
-    st.write(
-        "<style> .css-18e3d5x { display: flex; } .css-1e0y5nb { flex: 1; } </style>",
-        unsafe_allow_html=True
-    )
-
-    # Carrega dados
-    data = load_data_from_athena()
-
-    # Exibe dados conforme o dashboard selecionado
-    process_and_display_data(data, selected_dashboard)
-
+if __name__ == '__main__':
+    # Verifica e configura as credenciais da AWS
+    if 'AWS_REGION' in st.secrets:
+        boto3.setup_default_session(region_name=st.secrets["AWS_REGION"])
+        print("Região configurada corretamente: ", st.secrets["AWS_REGION"])
+    else:
+        st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
+    main()
 
 
 
