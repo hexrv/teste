@@ -146,7 +146,7 @@ def process_and_display_data(data, dashboard):
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_marca_selectbox')
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique()[-1], key='mes_prazo_marca_selectbox')
         data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
         data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
         prazo_por_marca = data_filtrada_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
