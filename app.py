@@ -146,7 +146,7 @@ def process_and_display_data(data, dashboard):
         st.subheader('Prazo por Marca')
         data_filtrada_prazo_marca = data_filtrada_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
         prazo_por_marca_chart = alt.Chart(data_filtrada_prazo_marca).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=0)),
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
             tooltip=['marca', 'dentro_prazo', 'quantidade']
@@ -197,17 +197,18 @@ def main():
     if st.session_state.logged_in:
         st.sidebar.title(f'Bem-vindo, {st.session_state.username}')
         st.sidebar.write("Escolha uma opção:")
+        
+        # Adiciona as opções em ordem vertical
         if st.sidebar.button('Veículos Finalizados'):
             st.session_state.dashboard = 'Veículos Finalizados'
         if st.sidebar.button('Termômetro de Prazo'):
             st.session_state.dashboard = 'Termômetro de Prazo'
 
         if 'dashboard' in st.session_state:
+            data = load_data_from_athena()
             if st.session_state.dashboard == 'Veículos Finalizados':
-                data = load_data_from_athena()
                 process_and_display_data(data, 'Veículos Finalizados')
             elif st.session_state.dashboard == 'Termômetro de Prazo':
-                data = load_data_from_athena()
                 process_and_display_data(data, 'Termômetro de Prazo')
         else:
             st.write("Selecione uma opção no menu lateral.")
@@ -222,6 +223,7 @@ if __name__ == '__main__':
     else:
         st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
     main()
+
 
 
 
