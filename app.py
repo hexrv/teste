@@ -73,12 +73,16 @@ def process_and_display_data(data, dashboard):
         
         # 2. Veículos Finalizados por Semana
         st.subheader('Veículos Finalizados por Semana')
-        semanas = sorted(data['semana_descricao'].unique())
-        semana_selecionada = st.selectbox('Selecione a Semana', semanas, key='semanas_selectbox')
-        data_filtrada_semana = data[data['semana_descricao'] == semana_selecionada]
-        semana_count = data_filtrada_semana.groupby('semana_descricao').size().reset_index(name='quantidade')
-        chart_semana = alt.Chart(semana_count).mark_bar().encode(
-            x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=45)),
+        meses = sorted(data['mes'].unique())
+        mes_selecionado = st.selectbox('Selecione o Mês', meses, key='mes_selecionado_semana')
+        data_filtrada = data[data['mes'] == mes_selecionado]
+        
+        # Nomeia as semanas e agrupa por semana
+        semanas = data_filtrada.groupby('semana_numero').size().reset_index(name='quantidade')
+        semanas['semana_descricao'] = semanas['semana_numero'].apply(lambda x: f'{x}ª semana de {data_filtrada["data_finalizacao"].dt.strftime("%B %Y").iloc[0]}')
+        
+        chart_semanal = alt.Chart(semanas).mark_bar().encode(
+            x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=45)),  # Legenda do eixo x na vertical
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('semana_descricao:N', title='Semana', scale=alt.Scale(scheme='category20')),
             tooltip=['semana_descricao', 'quantidade']
@@ -86,7 +90,7 @@ def process_and_display_data(data, dashboard):
             width=chart_width,
             title='Veículos Finalizados por Semana'
         )
-        st.altair_chart(chart_semana, use_container_width=True)
+        st.altair_chart(chart_semanal, use_container_width=True)
 
         # 3. Veículos Finalizados por Marca
         st.subheader('Veículos Finalizados por Marca')
@@ -133,8 +137,8 @@ def process_and_display_data(data, dashboard):
         data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
         prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
-            x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
+        prazo_status_chart = alt.Chart(prazo_status).mark_bar().encode(
+            x=alt.X('dentro_prazo:N', title='Status do Prazo'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
             tooltip=['dentro_prazo', 'quantidade']
@@ -142,7 +146,7 @@ def process_and_display_data(data, dashboard):
             width=chart_width,
             title='Veículos Finalizados - Prazo'
         )
-        st.altair_chart(chart_prazo, use_container_width=True)
+        st.altair_chart(prazo_status_chart, use_container_width=True)
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
@@ -229,6 +233,7 @@ if __name__ == '__main__':
     else:
         st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
     main()
+
 
 
 
