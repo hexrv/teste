@@ -49,10 +49,7 @@ def process_and_display_data(data, dashboard):
     # Adiciona coluna de semana numerada (de 1 a 4)
     data['semana_numero'] = (data['data_finalizacao'].dt.day - 1) // 7 + 1
     data['semana_descricao'] = data['data_finalizacao'].dt.strftime('%B %Y') + ' - Semana ' + data['semana_numero'].astype(str)
-
-    # Obtém o mês mais recente
-    mes_mais_recente = data['mes'].max()
-
+    
     # Configura o tamanho do gráfico
     chart_width = 800
     chart_height = 600
@@ -76,11 +73,9 @@ def process_and_display_data(data, dashboard):
         
         # 2. Veículos Finalizados por Semana
         st.subheader('Veículos Finalizados por Semana')
-        mes_selecionado_semana = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_mais_recente), key='mes_selecionado_semana')
-        data_filtrada_semana = data[data['mes'] == mes_selecionado_semana]
-        semanas = sorted(data_filtrada_semana['semana_descricao'].unique())
+        semanas = sorted(data['semana_descricao'].unique())
         semana_selecionada = st.selectbox('Selecione a Semana', semanas, key='semanas_selectbox')
-        data_filtrada_semana = data_filtrada_semana[data_filtrada_semana['semana_descricao'] == semana_selecionada]
+        data_filtrada_semana = data[data['semana_descricao'] == semana_selecionada]
         semana_count = data_filtrada_semana.groupby('semana_descricao').size().reset_index(name='quantidade')
         chart_semana = alt.Chart(semana_count).mark_bar().encode(
             x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=45)),
@@ -95,7 +90,8 @@ def process_and_display_data(data, dashboard):
 
         # 3. Veículos Finalizados por Marca
         st.subheader('Veículos Finalizados por Marca')
-        mes_selecionado_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_mais_recente), key='mes_selecionado_marca')
+        mes_atual = sorted(data['mes'].unique())[-1]  # Seleciona o mês mais atual
+        mes_selecionado_marca = st.selectbox('Selecione o Mês', sorted(data['mes'].unique()), index=len(sorted(data['mes'].unique())) - 1, key='mes_selecionado_marca')
         data_filtrada_marca = data[data['mes'] == mes_selecionado_marca]
         marca_count = data_filtrada_marca.groupby('marca').size().reset_index(name='quantidade')
         chart_marca = alt.Chart(marca_count).mark_bar().encode(
@@ -111,7 +107,8 @@ def process_and_display_data(data, dashboard):
 
         # 4. Veículos Finalizados por Modelo
         st.subheader('Veículos Finalizados por Modelo')
-        mes_selecionado_modelo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_mais_recente), key='mes_modelo_selectbox')
+        mes_atual = sorted(data['mes'].unique())[-1]  # Seleciona o mês mais atual
+        mes_selecionado_modelo = st.selectbox('Selecione o Mês', sorted(data['mes'].unique()), index=len(sorted(data['mes'].unique())) - 1, key='mes_modelo_selectbox')
         marca_selecionada = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_modelo_selectbox')
         data_filtrada_modelo = data[(data['mes'] == mes_selecionado_modelo) & (data['marca'] == marca_selecionada)]
         modelo_count = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
@@ -131,7 +128,7 @@ def process_and_display_data(data, dashboard):
 
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_mais_recente), key='mes_prazo_selectbox')
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_selectbox')
         data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
         data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
@@ -149,62 +146,88 @@ def process_and_display_data(data, dashboard):
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_mais_recente), key='mes_prazo_marca_selectbox')
-        data_filtrada_prazo_marca = data[data['mes'] == mes_selecionado_prazo_marca]
-        prazo_marca = data_filtrada_prazo_marca.groupby('marca').apply(
-            lambda x: (x['data_finalizacao'] <= x['dt_contrato']).sum()
-        ).reset_index(name='dentro_prazo')
-        prazo_marca['fora_prazo'] = data_filtrada_prazo_marca.groupby('marca').size() - prazo_marca['dentro_prazo']
-        prazo_marca = prazo_marca.melt(id_vars='marca', value_vars=['dentro_prazo', 'fora_prazo'], var_name='Status', value_name='Quantidade')
-        chart_prazo_marca = alt.Chart(prazo_marca).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),
-            y=alt.Y('Quantidade:Q', title='Quantidade'),
-            color=alt.Color('Status:N', title='Status'),
-            tooltip=['marca', 'Status', 'Quantidade']
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_marca_selectbox')
+        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
+        data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
+        prazo_por_marca = data_filtrada_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
+        prazo_por_marca_chart = alt.Chart(prazo_por_marca).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
+            y=alt.Y('quantidade:Q', title='Quantidade'),
+            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
+            tooltip=['marca', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
             title='Prazo por Marca'
         )
-        st.altair_chart(chart_prazo_marca, use_container_width=True)
+        st.altair_chart(prazo_por_marca_chart, use_container_width=True)
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        mes_selecionado_mapa = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_mais_recente), key='mes_mapa_selectbox')
-        data_filtrada_mapa = data[data['mes'] == mes_selecionado_mapa]
-        heatmap = data_filtrada_mapa.groupby(['ano', 'mes', 'semana_descricao']).size().reset_index(name='quantidade')
-        chart_mapa = alt.Chart(heatmap).mark_rect().encode(
-            x=alt.X('semana_descricao:N', title='Semana'),
-            y=alt.Y('mes:N', title='Mês'),
-            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='viridis')),
-            tooltip=['ano', 'mes', 'semana_descricao', 'quantidade']
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_calor_selectbox')
+        data_filtrada_calor = data[data['mes'] == mes_selecionado_prazo]
+        data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
+        heatmap_data = data_filtrada_calor.groupby(['mes', 'dentro_prazo']).size().reset_index(name='quantidade')
+        heatmap_chart = alt.Chart(heatmap_data).mark_rect().encode(
+            x=alt.X('mes:N', title='Mês'),
+            y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
+            color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='greenblue')),
+            tooltip=['mes', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
             height=chart_height,
-            title='Mapa de Calor'
+            title='Mapa de Calor - Veículos Finalizados'
         )
-        st.altair_chart(chart_mapa, use_container_width=True)
+        st.altair_chart(heatmap_chart, use_container_width=True)
 
-# Função principal do Streamlit
-def main():
-    st.title("Dashboard de Veículos")
-    st.sidebar.title("Menu Lateral")
+def login_screen():
+    st.title('Login')
+    st.write('Por favor, faça login para acessar o sistema.')
 
-    # Login
-    usuario = st.sidebar.text_input("Usuário")
-    senha = st.sidebar.text_input("Senha", type='password')
-    if st.sidebar.button("Login"):
-        if usuario in USERS and USERS[usuario] == senha:
-            st.sidebar.success(f"Bem-vindo, {usuario}!")
-            # Menu Lateral
-            option = st.sidebar.radio("", ["Veículos Finalizados", "Termômetro de Prazo"])
-            data = load_data_from_athena()
-            process_and_display_data(data, option)
+    username = st.text_input('Usuário')
+    password = st.text_input('Senha', type='password')
+    login_button = st.button('Entrar')
+
+    if login_button:
+        if username in USERS and USERS[username] == password:
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.success(f'Bem-vindo, {username}!')
+            st.experimental_rerun()
         else:
-            st.sidebar.error("Usuário ou senha incorretos.")
-    else:
-        st.sidebar.info("Digite seu usuário e senha.")
+            st.error('Usuário ou senha incorretos.')
 
-if __name__ == "__main__":
+def main():
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+
+    if st.session_state.logged_in:
+        st.sidebar.title(f'Bem-vindo, {st.session_state.username}')
+        st.sidebar.write("Escolha uma opção:")
+        
+        # Adiciona as opções em ordem vertical
+        if st.sidebar.button('Veículos Finalizados'):
+            st.session_state.dashboard = 'Veículos Finalizados'
+        if st.sidebar.button('Termômetro de Prazo'):
+            st.session_state.dashboard = 'Termômetro de Prazo'
+
+        if 'dashboard' in st.session_state:
+            data = load_data_from_athena()
+            if st.session_state.dashboard == 'Veículos Finalizados':
+                process_and_display_data(data, 'Veículos Finalizados')
+            elif st.session_state.dashboard == 'Termômetro de Prazo':
+                process_and_display_data(data, 'Termômetro de Prazo')
+        else:
+            st.write("Selecione uma opção no menu lateral.")
+    else:
+        login_screen()
+
+if __name__ == '__main__':
+    # Verifica e configura as credenciais da AWS
+    if 'AWS_REGION' in st.secrets:
+        boto3.setup_default_session(region_name=st.secrets["AWS_REGION"])
+        print("Região configurada corretamente: ", st.secrets["AWS_REGION"])
+    else:
+        st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
     main()
 
 
