@@ -12,15 +12,6 @@ USERS = {
     "Marcelo.Alves": "Carbon@2021"
 }
 
-
-# Configurar o layout da página
-st.set_page_config(
-    page_title="Dados-CORE",
-    page_icon="icone.png", # Se você quiser adicionar um ícone à aba do navegador
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items=None  
-)
  
 # Função para carregar dados da AWS Athena com caching
 @st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
