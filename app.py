@@ -12,7 +12,6 @@ USERS = {
     "Marcelo.Alves": "Carbon@2021"
 }
 
- 
 # Função para carregar dados da AWS Athena com caching
 @st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
 def load_data_from_athena():
