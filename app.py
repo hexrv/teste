@@ -4,6 +4,9 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
+# Configuração da região AWS
+boto3.setup_default_session(region_name='us-east-2')
+
 # Dicionário de usuários
 USERS = {
     "Henri.Santos": "Carbon@2024",
