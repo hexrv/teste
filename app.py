@@ -4,8 +4,14 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
-# Configuração da região AWS
-boto3.setup_default_session(region_name='us-west-2')
+# Configurar o layout da página
+st.set_page_config(
+    page_title="Teste Dashboard",
+    page_icon="icone.png",  # Se você quiser adicionar um ícone à aba do navegador
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items=None  
+)
 
 # Dicionário de usuários
 USERS = {
@@ -16,7 +22,7 @@ USERS = {
 }
 
 # Função para carregar dados da AWS Athena com caching
-@st.cache_data(ttl=150)  # Cache por 150 segundos (2,5 minutos)
+@st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
 def load_data_from_athena():
     query = """
     SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
@@ -152,9 +158,9 @@ def process_and_display_data(data, dashboard):
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
         prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
         chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
-            x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
+            x=alt.X('dentro_prazo:N', title='Status do Prazo'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
+            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
             tooltip=['dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
@@ -168,9 +174,8 @@ def process_and_display_data(data, dashboard):
         data_filtrada_prazo_marca = data[data['mes'] == mes_selecionado_prazo_marca]
         data_filtrada_prazo_marca['dentro_prazo'] = data_filtrada_prazo_marca['data_finalizacao'] <= data_filtrada_prazo_marca['dt_contrato']
         prazo_marca_count = data_filtrada_prazo_marca.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        prazo_marca_count['dentro_prazo'] = prazo_marca_count['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
         chart_prazo_marca = alt.Chart(prazo_marca_count).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),
+            x=alt.X('marca:N', title='Marca'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
             tooltip=['marca', 'dentro_prazo', 'quantidade']
@@ -185,48 +190,48 @@ def process_and_display_data(data, dashboard):
         mes_selecionado_calor = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_calor_selectbox')
         data_filtrada_calor = data[data['mes'] == mes_selecionado_calor]
         data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
-        heatmap_data = data_filtrada_calor.groupby(['dia', 'dentro_prazo']).size().reset_index(name='quantidade')
-        heatmap_data['dentro_prazo'] = heatmap_data['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        heatmap_chart = alt.Chart(heatmap_data).mark_rect().encode(
-            x=alt.X('dia:O', title='Dia'),
+        heatmap_data = data_filtrada_calor.groupby(['semana_descricao', 'dentro_prazo']).size().reset_index(name='quantidade')
+        chart_heatmap = alt.Chart(heatmap_data).mark_rect().encode(
+            x=alt.X('semana_descricao:N', title='Semana'),
             y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
             color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='viridis')),
-            tooltip=['dia', 'dentro_prazo', 'quantidade']
+            tooltip=['semana_descricao', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
+            height=chart_height,
             title='Mapa de Calor'
         )
-        st.altair_chart(heatmap_chart, use_container_width=True)
+        st.altair_chart(chart_heatmap, use_container_width=True)
 
-# Função de login
-def login():
-    st.title('Login')
-    st.write("Por favor, faça login para acessar o sistema.")
-    username = st.text_input('Usuário')
-    password = st.text_input('Senha', type='password')
+# Autenticação de usuário
+def authenticate_user():
+    st.sidebar.title("Login")
+    username = st.sidebar.text_input("Username", "")
+    password = st.sidebar.text_input("Password", "", type="password")
 
-    if st.button('Login'):
-        if USERS.get(username) == password:
-            st.session_state['user'] = username
-            st.experimental_rerun()
-        else:
-            st.error('Usuário ou senha inválidos')
+    if username in USERS and USERS[username] == password:
+        st.session_state.logged_in = True
+        st.session_state.username = username
+    else:
+        st.session_state.logged_in = False
 
-# Verifica o login
-if 'user' not in st.session_state:
-    login()
-else:
-    username = st.session_state['user']
-    
-    # Carrega os dados
+# Verifica se o usuário está logado
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    authenticate_user()
+
+if st.session_state.get('logged_in'):
+    # Carregar dados
     data = load_data_from_athena()
     
-    # Cria o menu lateral
-    st.sidebar.title(f"Bem-vindo, {username}!")
-    dashboard = st.sidebar.radio("Selecione o Dashboard", ('Veículos Finalizados', 'Termômetro de Prazo'))
-    
-    # Processa e exibe os dados de acordo com o dashboard selecionado
-    process_and_display_data(data, dashboard)
+    # Exibir menu lateral com opções fixas
+    st.sidebar.title(f'Bem-vindo, {st.session_state.username}')
+    menu = ['Veículos Finalizados', 'Termômetro de Prazo']
+    choice = st.sidebar.radio("Escolha o dashboard", menu, index=0)
+
+    # Processar e exibir dados de acordo com a escolha do dashboard
+    process_and_display_data(data, choice)
+else:
+    st.error("Você precisa fazer login para acessar o dashboard.")
 
 
 
