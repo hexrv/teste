@@ -4,6 +4,9 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
+# Acesse a região dos segredos
+region = st.secrets["aws"]["region"]
+
 # Dicionário de usuários
 USERS = {
     "Henri.Santos": "Carbon@2024",
@@ -223,12 +226,9 @@ if 'user' not in st.session_state:
 else:
     username = st.session_state['user']
 
-    
     # Carrega os dados
     data = load_data_from_athena()
-
-    
-    
+        
     # Cria o menu lateral
     st.sidebar.title(f"Olá, {username}")
     dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização.", ('Veículos Finalizados', 'Termômetro de Prazo'))
