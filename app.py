@@ -28,7 +28,7 @@ def process_and_display_data(data, dashboard):
     # Verifica se a coluna dt_finalizacao está presente
     if 'dt_finalizacao' in data.columns:
         # Converte dt_finalizacao para datetime
-        data['data_finalizacao'] = pd.to_datetime(data['dt_finalizacao'], format=None, infer_datetime_format=True)
+        data['data_finalizacao'] = pd.to_datetime(data['dt_finalizacao'], errors='coerce')
         data.dropna(subset=['data_finalizacao'], inplace=True)
     else:
         st.error("Coluna 'dt_finalizacao' não encontrada na tabela.")
@@ -139,30 +139,30 @@ def process_and_display_data(data, dashboard):
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
         mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
-        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
-        data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
+        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo].copy()
+        data_filtrada_prazo['dentro_prazo'] = (data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']).fillna(False)
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
         prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
         chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
-            x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
+            x=alt.X('dentro_prazo:N', title='Status do Prazo'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
             tooltip=['dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
-            title='Veículos Finalizados - Prazo'
+            title='Veículos Finalizados Dentro/Fora do Prazo'
         )
         st.altair_chart(chart_prazo, use_container_width=True)
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_marca_selectbox')
-        data_filtrada_prazo_marca = data[data['mes'] == mes_selecionado_prazo_marca]
-        data_filtrada_prazo_marca['dentro_prazo'] = data_filtrada_prazo_marca['data_finalizacao'] <= data_filtrada_prazo_marca['dt_contrato']
-        prazo_marca_count = data_filtrada_prazo_marca.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        prazo_marca_count['dentro_prazo'] = prazo_marca_count['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        chart_prazo_marca = alt.Chart(prazo_marca_count).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),
+        mes_selecionado_marca_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_marca_prazo_selectbox')
+        data_filtrada_marca_prazo = data[data['mes'] == mes_selecionado_marca_prazo].copy()
+        data_filtrada_marca_prazo['dentro_prazo'] = (data_filtrada_marca_prazo['data_finalizacao'] <= data_filtrada_marca_prazo['dt_contrato']).fillna(False)
+        marca_prazo_status = data_filtrada_marca_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
+        marca_prazo_status['dentro_prazo'] = marca_prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+        chart_marca_prazo = alt.Chart(marca_prazo_status).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
             y=alt.Y('quantidade:Q', title='Quantidade'),
             color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
             tooltip=['marca', 'dentro_prazo', 'quantidade']
@@ -170,25 +170,27 @@ def process_and_display_data(data, dashboard):
             width=chart_width,
             title='Prazo por Marca'
         )
-        st.altair_chart(chart_prazo_marca, use_container_width=True)
+        st.altair_chart(chart_marca_prazo, use_container_width=True)
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
         mes_selecionado_calor = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_calor_selectbox')
-        data_filtrada_calor = data[data['mes'] == mes_selecionado_calor]
-        data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
-        heatmap_data = data_filtrada_calor.groupby(['dia', 'dentro_prazo']).size().reset_index(name='quantidade')
-        heatmap_data['dentro_prazo'] = heatmap_data['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        heatmap_chart = alt.Chart(heatmap_data).mark_rect().encode(
-            x=alt.X('dia:O', title='Dia'),
+        data_filtrada_calor = data[data['mes'] == mes_selecionado_calor].copy()
+        data_filtrada_calor['dentro_prazo'] = (data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']).fillna(False)
+        data_filtrada_calor['semana_numero'] = (data_filtrada_calor['data_finalizacao'].dt.day - 1) // 7 + 1
+        calor_data = data_filtrada_calor.groupby(['semana_numero', 'dentro_prazo']).size().reset_index(name='quantidade')
+        
+        chart_heatmap = alt.Chart(calor_data).mark_rect().encode(
+            x=alt.X('semana_numero:O', title='Semana do Mês'),
             y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
-            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='viridis')),
-            tooltip=['dia', 'dentro_prazo', 'quantidade']
+            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='reds')),
+            tooltip=['semana_numero', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
-            title='Mapa de Calor'
+            height=chart_height,
+            title='Mapa de Calor - Finalização Dentro/Fora do Prazo'
         )
-        st.altair_chart(heatmap_chart, use_container_width=True)
+        st.altair_chart(chart_heatmap, use_container_width=True)
 
 
 st.set_page_config(
@@ -220,9 +222,12 @@ else:
     data = load_data_from_athena()
     
     # Cria o menu lateral
-    st.sidebar.title(f"Olá, {username}")
+    st.sidebar.title(f"Olá, {username.split('.')[0]}")
     dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização", ('Veículos Finalizados', 'Termômetro de Prazo'))
     
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
+
+
+
 
