@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -197,9 +196,15 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(heatmap_chart, use_container_width=True)
 
+        # Configuração da página
+st.set_page_config(
+    page_title='Dashboard de Veículos',
+    page_icon=':car:'
+)
+
 # Função de login
 def login():
-    st.title('Login')
+    st.title('Plataforma de dados Carbon')
     st.write("Por favor, faça login para acessar o sistema.")
     username = st.text_input('Usuário')
     password = st.text_input('Senha', type='password')
@@ -211,38 +216,23 @@ def login():
         else:
             st.error('Usuário ou senha inválidos')
 
+
 # Verifica o login
 if 'user' not in st.session_state:
     login()
 else:
     username = st.session_state['user']
+
     
     # Carrega os dados
     data = load_data_from_athena()
+
+    
     
     # Cria o menu lateral
-    st.sidebar.title(f"Bem-vindo, {username}!")
-    dashboard = st.sidebar.radio("Selecione o Dashboard", ('Veículos Finalizados', 'Termômetro de Prazo'))
+    st.sidebar.title(f"Olá, {username}")
+    dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização.", ('Veículos Finalizados', 'Termômetro de Prazo'))
     
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
