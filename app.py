@@ -179,6 +179,7 @@ def process_and_display_data(data, dashboard):
         data_filtrada_calor['dentro_prazo'] = (data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']).fillna(False)
         data_filtrada_calor['semana_numero'] = (data_filtrada_calor['data_finalizacao'].dt.day - 1) // 7 + 1
         calor_data = data_filtrada_calor.groupby(['semana_numero', 'dentro_prazo']).size().reset_index(name='quantidade')
+        calor_data['dentro_prazo'] = calor_data['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
         
         chart_heatmap = alt.Chart(calor_data).mark_rect().encode(
             x=alt.X('semana_numero:O', title='Semana do Mês'),
@@ -192,8 +193,7 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(chart_heatmap, use_container_width=True)
 
-
-st.set_page_config(
+        st.set_page_config(
     page_title='Dashboard de Veículos',
     page_icon=':car:'
 )
@@ -227,6 +227,7 @@ else:
     
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
+
 
 
 
