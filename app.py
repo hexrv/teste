@@ -196,7 +196,11 @@ def process_and_display_data(data, dashboard):
             title='Mapa de Calor - Finalização Dentro/Fora do Prazo'
         )
         st.altair_chart(chart_heatmap, use_container_width=True)
-
+        
+st.set_page_config(
+    page_title='Dashboard de Veículos',
+    page_icon=':car:'
+)
 # Função de login
 def login():
     st.title('Plataforma de Dados')
