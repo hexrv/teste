@@ -193,7 +193,7 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(chart_heatmap, use_container_width=True)
 
-        st.set_page_config(
+st.set_page_config(
     page_title='Dashboard de Veículos',
     page_icon=':car:'
 )
