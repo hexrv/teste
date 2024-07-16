@@ -4,13 +4,16 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
-# Dicionário de usuários
+# Dicionário de usuários e senha
 USERS = {
     "Henri.Santos": "Carbon@2024",
     "Cassio.Luis": "Carbon@2023",
     "Rafael.Augusto": "Carbon@2022",
     "Marcelo.Alves": "Carbon@2021"
 }
+
+# Defina o usuário administrador
+ADMIN_USER = "Henri.Santos"
 
 # Função para carregar dados da AWS Athena com caching
 @st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
@@ -143,6 +146,7 @@ def process_and_display_data(data, dashboard):
         data_filtrada_prazo['dentro_prazo'] = (data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']).fillna(False)
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
         prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+        
         chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
             x=alt.X('dentro_prazo:N', title='Status do Prazo'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
@@ -193,11 +197,6 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(chart_heatmap, use_container_width=True)
 
-st.set_page_config(
-    page_title='Dashboard de Veículos',
-    page_icon=':car:'
-)
-
 # Função de login
 def login():
     st.title('Plataforma de Dados')
@@ -218,15 +217,22 @@ if 'user' not in st.session_state:
 else:
     username = st.session_state['user']
     
-    # Carrega os dados
-    data = load_data_from_athena()
-    
     # Cria o menu lateral
     st.sidebar.title(f"Olá, {username.split('.')[0]}")
     dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização", ('Veículos Finalizados', 'Termômetro de Prazo'))
     
+    # Exibe opções de gerenciamento se o usuário for o administrador
+    if username == ADMIN_USER:
+        st.sidebar.subheader('Gerenciamento e Configurações')
+        st.sidebar.markdown("[Gerenciar Configurações](#)")
+        st.sidebar.markdown("[Outras Opções](#)")
+    
+    # Carrega os dados
+    data = load_data_from_athena()
+    
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
+
 
 
 
