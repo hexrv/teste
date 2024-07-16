@@ -13,32 +13,36 @@ USERS = {
     "Marcelo.Alves": "Carbon@2021"
 }
 
-# Verifica e configura as credenciais da AWS
+# Função para configurar a região da AWS
 def configure_aws():
     if "aws" in st.secrets:
         region = st.secrets["aws"].get("region")
         if region:
             boto3.setup_default_session(region_name=region)
-            print(f"Região configurada corretamente: {region}")
+            wr.config.aws.region = region  # Configura a região para awswrangler
+            st.write(f"Região configurada corretamente: {region}")
         else:
             st.error("Região AWS não encontrada nos segredos.")
     else:
         st.error("Seção AWS não encontrada no arquivo de segredos.")
 
 # Função para carregar dados da AWS Athena com caching
-@st.cache_data(ttl=150)  # Cache por 150 segundos (2,5 minutos)
+@st.experimental_memo(ttl=150)  # Cache por 150 segundos (2,5 minutos)
 def load_data_from_athena():
-    query = """
-    SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
-    FROM awsdatacatalog.jira_sbm.vw_veiculos_finalizados
-    """
-    # Executa a consulta e retorna um DataFrame
-    df = wr.athena.read_sql_query(query, database='jira_sbm')
-    return df
+    try:
+        query = """
+        SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
+        FROM awsdatacatalog.jira_sbm.vw_veiculos_finalizados
+        """
+        # Executa a consulta e retorna um DataFrame
+        df = wr.athena.read_sql_query(query, database='jira_sbm')
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados do Athena: {e}")
+        return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
 
 # Função para processar e exibir dados
 def process_and_display_data(data, dashboard):
-    # Verifica se a coluna dt_finalizacao está presente
     if 'dt_finalizacao' in data.columns:
         # Converte dt_finalizacao para datetime
         data['data_finalizacao'] = pd.to_datetime(data['dt_finalizacao'], format=None, infer_datetime_format=True)
@@ -163,24 +167,24 @@ def process_and_display_data(data, dashboard):
         chart_prazo = alt.Chart(prazo_count).mark_bar().encode(
             x=alt.X('Dentro do Prazo:N', title='Dentro do Prazo'),
             y=alt.Y('Quantidade:Q', title='Quantidade'),
-            color=alt.Color('Dentro do Prazo:N', scale=alt.Scale(domain=['True', 'False'], range=['green', 'red'])),
+            color=alt.Color('Dentro do Prazo:N', scale=alt.Scale(scheme='category10')),
             tooltip=['Dentro do Prazo', 'Quantidade']
         ).properties(
             width=chart_width,
-            title='Veículos Finalizados Dentro e Fora do Prazo'
+            title='Quantidade de Veículos Dentro e Fora do Prazo'
         )
         st.altair_chart(chart_prazo, use_container_width=True)
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        marca_selecionada_prazo = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_prazo_selectbox')
-        prazo_marca_df = data[data['marca'] == marca_selecionada_prazo]
-        prazo_marca = prazo_marca_df.groupby('mes').agg({'prazo': 'mean'}).reset_index()
-        chart_prazo_marca = alt.Chart(prazo_marca).mark_line().encode(
-            x=alt.X('mes:O', title='Mês'),
-            y=alt.Y('prazo:Q', title='Prazo Médio'),
-            color=alt.Color('marca:N', title='Marca'),
-            tooltip=['mes', 'prazo']
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
+        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
+        prazo_por_marca = data_filtrada_prazo.groupby('marca')['prazo'].mean().reset_index()
+        chart_prazo_marca = alt.Chart(prazo_por_marca).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),
+            y=alt.Y('prazo:Q', title='Prazo Médio (dias)'),
+            color=alt.Color('marca:N', title='Marca', scale=alt.Scale(scheme='category20')),
+            tooltip=['marca', 'prazo']
         ).properties(
             width=chart_width,
             title='Prazo Médio por Marca'
@@ -189,51 +193,47 @@ def process_and_display_data(data, dashboard):
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        heatmap_data = data[['mes', 'marca', 'modelo', 'prazo']]
-        heatmap_data = heatmap_data.groupby(['mes', 'marca', 'modelo']).size().reset_index(name='quantidade')
-        heatmap = alt.Chart(heatmap_data).mark_rect().encode(
-            x=alt.X('mes:O', title='Mês'),
-            y=alt.Y('marca:N', title='Marca'),
-            color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='blues'), title='Quantidade'),
-            tooltip=['mes', 'marca', 'quantidade']
+        mes_selecionado_calor = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_calor_selectbox')
+        data_filtrada_calor = data[data['mes'] == mes_selecionado_calor]
+        heatmap = data_filtrada_calor.groupby(['marca', 'modelo']).size().reset_index(name='quantidade')
+        chart_calor = alt.Chart(heatmap).mark_rect().encode(
+            x=alt.X('marca:N', title='Marca'),
+            y=alt.Y('modelo:N', title='Modelo'),
+            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='viridis')),
+            tooltip=['marca', 'modelo', 'quantidade']
         ).properties(
             width=chart_width,
-            height=chart_height,
-            title='Mapa de Calor - Prazo'
+            title='Mapa de Calor - Quantidade por Marca e Modelo'
         )
-        st.altair_chart(heatmap, use_container_width=True)
+        st.altair_chart(chart_calor, use_container_width=True)
 
-def main():
-    st.title('Dashboard Carbon')
+# Configuração inicial da AWS
+configure_aws()
 
-    # Configura a AWS
-    configure_aws()
+# Interface de Login
+st.title("Área de Login")
+username = st.text_input("Usuário")
+password = st.text_input("Senha", type="password")
 
-    # Verifica login
-    if 'username' not in st.session_state:
-        with st.form(key='login_form'):
-            username = st.text_input('Usuário')
-            password = st.text_input('Senha', type='password')
-            submitted = st.form_submit_button('Entrar')
-            
-            if submitted:
-                if username in USERS and USERS[username] == password:
-                    st.session_state.username = username
-                else:
-                    st.error('Usuário ou senha inválidos')
-    else:
-        st.write(f'Bem-vindo, {st.session_state.username}')
+if username in USERS and USERS[username] == password:
+    st.session_state.user_logged_in = True
+    st.session_state.user_name = username
+    st.sidebar.write(f"Bem-vindo, {username.split('.')[0]}!")  # Exibe apenas o primeiro nome
+else:
+    if st.button("Entrar"):
+        st.error("Usuário ou senha incorretos.")
 
-        # Carrega dados
-        df = load_data_from_athena()
+if 'user_logged_in' in st.session_state and st.session_state.user_logged_in:
+    # Menu Lateral
+    st.sidebar.title("Navegação")
+    dashboard_option = st.sidebar.radio("Escolha o Dashboard", ["Veículos Finalizados", "Termômetro de Prazo"])
+    
+    # Carregamento de dados
+    data = load_data_from_athena()
 
-        # Seleciona dashboard
-        dashboard = st.sidebar.selectbox('Selecione o Dashboard', ['Veículos Finalizados', 'Termômetro de Prazo'])
-
-        # Processa e exibe dados
-        process_and_display_data(df, dashboard)
-
-if __name__ == "__main__":
-    main()
+    # Processamento e exibição dos dados
+    process_and_display_data(data, dashboard_option)
+else:
+    st.warning("Você deve fazer login para acessar os dashboards.")
 
 
