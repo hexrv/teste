@@ -190,6 +190,12 @@ def process_and_display_data(data, dashboard):
         )
         st.altair_chart(heatmap_chart, use_container_width=True)
 
+
+st.set_page_config(
+    page_title='Dashboard de Veículos',
+    page_icon=':car:'
+)
+
 # Função de login
 def login():
     st.title('Plataforma de Dados')
