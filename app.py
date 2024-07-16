@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
+import boto3
 from datetime import datetime
 
 # Dicionário de usuários
