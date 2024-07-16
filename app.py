@@ -2,16 +2,6 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
-from datetime import datetime
-
-# Configurar o layout da página
-st.set_page_config(
-    page_title="Teste Dashboard",
-    page_icon="icone.png",  # Se você quiser adicionar um ícone à aba do navegador
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items=None  
-)
 
 # Dicionário de usuários
 USERS = {
@@ -22,7 +12,7 @@ USERS = {
 }
 
 # Função para carregar dados da AWS Athena com caching
-@st.cache_data(ttl=150)  # Cache por 150 segundos (2,5 minutos)
+@st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
 def load_data_from_athena():
     query = """
     SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
@@ -59,9 +49,6 @@ def process_and_display_data(data, dashboard):
     data['semana_numero'] = (data['data_finalizacao'].dt.day - 1) // 7 + 1
     data['semana_descricao'] = data['data_finalizacao'].dt.strftime('%B %Y') + ' - Semana ' + data['semana_numero'].astype(str)
     
-    # Obtém o mês atual
-    mes_atual = datetime.now().strftime('%Y-%m')
-
     # Configura o tamanho do gráfico
     chart_width = 800
     chart_height = 600
@@ -85,8 +72,9 @@ def process_and_display_data(data, dashboard):
         
         # 2. Veículos Finalizados por Semana
         st.subheader('Veículos Finalizados por Semana')
-        mes_selecionado = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='semanas_selectbox')
-        data_filtrada_semana = data[data['mes'] == mes_selecionado]
+        semanas = sorted(data['semana_descricao'].unique())
+        semana_selecionada = st.selectbox('Selecione a Semana', semanas, key='semanas_selectbox')
+        data_filtrada_semana = data[data['semana_descricao'] == semana_selecionada]
         semana_count = data_filtrada_semana.groupby('semana_descricao').size().reset_index(name='quantidade')
         chart_semana = alt.Chart(semana_count).mark_bar().encode(
             x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=45)),
@@ -101,7 +89,7 @@ def process_and_display_data(data, dashboard):
 
         # 3. Veículos Finalizados por Marca
         st.subheader('Veículos Finalizados por Marca')
-        mes_selecionado_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_selecionado_marca')
+        mes_selecionado_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_selecionado_marca')
         data_filtrada_marca = data[data['mes'] == mes_selecionado_marca]
         marca_count = data_filtrada_marca.groupby('marca').size().reset_index(name='quantidade')
         chart_marca = alt.Chart(marca_count).mark_bar().encode(
@@ -117,50 +105,35 @@ def process_and_display_data(data, dashboard):
 
         # 4. Veículos Finalizados por Modelo
         st.subheader('Veículos Finalizados por Modelo')
-        mes_selecionado_modelo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_modelo_selectbox')
+        mes_selecionado_modelo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_modelo_selectbox')
         marca_selecionada = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_modelo_selectbox')
-        
-        try:
-            data_filtrada_modelo = data[(data['mes'] == mes_selecionado_modelo) & (data['marca'] == marca_selecionada)]
-            
-            if data_filtrada_modelo.empty:
-                st.warning("Não há dados disponíveis para a combinação selecionada de mês e marca.")
-                return
-            
-            modelo_count = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
-            
-            if modelo_count.empty:
-                st.warning("Não há dados disponíveis para o modelo.")
-                return
-            
-            chart_modelo = alt.Chart(modelo_count).mark_bar().encode(
-                x=alt.X('modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
-                y=alt.Y('quantidade:Q', title='Quantidade'),
-                color=alt.Color('modelo:N', title='Modelo', scale=alt.Scale(scheme='category20')),
-                tooltip=['modelo', 'quantidade']
-            ).properties(
-                width=chart_width,
-                title='Veículos Finalizados por Modelo'
-            )
-            st.altair_chart(chart_modelo, use_container_width=True)
-        
-        except Exception as e:
-            st.error(f"Ocorreu um erro ao processar os dados: {e}")
+        data_filtrada_modelo = data[(data['mes'] == mes_selecionado_modelo) & (data['marca'] == marca_selecionada)]
+        modelo_count = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
+        chart_modelo = alt.Chart(modelo_count).mark_bar().encode(
+            x=alt.X('modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
+            y=alt.Y('quantidade:Q', title='Quantidade'),
+            color=alt.Color('modelo:N', title='Modelo', scale=alt.Scale(scheme='category20')),
+            tooltip=['modelo', 'quantidade']
+        ).properties(
+            width=chart_width,
+            title='Veículos Finalizados por Modelo'
+        )
+        st.altair_chart(chart_modelo, use_container_width=True)
 
     elif dashboard == 'Termômetro de Prazo':
         st.title('Termômetro de Prazo')
 
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_selectbox')
         data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
         data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
         prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
         chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
-            x=alt.X('dentro_prazo:N', title='Status do Prazo'),
+            x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category20')),
+            color=alt.Color('dentro_prazo:N', scale=alt.Scale(scheme='category10')),
             tooltip=['dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
@@ -170,14 +143,15 @@ def process_and_display_data(data, dashboard):
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_marca_selectbox')
+        mes_selecionado_prazo_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), key='mes_prazo_marca_selectbox')
         data_filtrada_prazo_marca = data[data['mes'] == mes_selecionado_prazo_marca]
         data_filtrada_prazo_marca['dentro_prazo'] = data_filtrada_prazo_marca['data_finalizacao'] <= data_filtrada_prazo_marca['dt_contrato']
-        prazo_marca_count = data_filtrada_prazo_marca.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        chart_prazo_marca = alt.Chart(prazo_marca_count).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca'),
+        prazo_marca = data_filtrada_prazo_marca.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
+        prazo_marca['dentro_prazo'] = prazo_marca['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+        chart_prazo_marca = alt.Chart(prazo_marca).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
+            color=alt.Color('dentro_prazo:N', title='Status do Prazo'),
             tooltip=['marca', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
@@ -187,49 +161,67 @@ def process_and_display_data(data, dashboard):
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        mes_selecionado_calor = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_calor_selectbox')
-        data_filtrada_calor = data[data['mes'] == mes_selecionado_calor]
+        meses_disponiveis = sorted(data['mes'].unique())
+        intervalo_meses = st.multiselect('Selecione o(s) Mês(es)', meses_disponiveis, default=[meses_disponiveis[0]])
+        data_filtrada_calor = data[data['mes'].isin(intervalo_meses)]
         data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
-        heatmap_data = data_filtrada_calor.groupby(['semana_descricao', 'dentro_prazo']).size().reset_index(name='quantidade')
-        chart_heatmap = alt.Chart(heatmap_data).mark_rect().encode(
-            x=alt.X('semana_descricao:N', title='Semana'),
-            y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
-            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='viridis')),
-            tooltip=['semana_descricao', 'dentro_prazo', 'quantidade']
+        calor_prazo = data_filtrada_calor.groupby(['ano', 'mes', 'dentro_prazo']).size().reset_index(name='quantidade')
+        chart_calor = alt.Chart(calor_prazo).mark_rect().encode(
+            x=alt.X('mes:N', title='Mês', axis=alt.Axis(labelAngle=45)),
+            y=alt.Y('ano:N', title='Ano'),
+            color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='viridis')),
+            tooltip=['ano', 'mes', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
             height=chart_height,
-            title='Mapa de Calor'
+            title='Mapa de Calor - Prazo'
+        ).configure_view(
+            strokeOpacity=0
         )
-        st.altair_chart(chart_heatmap, use_container_width=True)
+        st.altair_chart(chart_calor, use_container_width=True)
 
-# Autenticação de usuário
-def authenticate_user():
-    st.sidebar.title("Login")
-    username = st.sidebar.text_input("Username", "")
-    password = st.sidebar.text_input("Password", "", type="password")
+    elif dashboard == 'Lista de Acessos':
+        st.title('Lista de Acessos')
+        st.write("Conteúdo do dashboard Lista de Acessos ainda não implementado.")
 
-    if username in USERS and USERS[username] == password:
-        st.session_state.logged_in = True
-        st.session_state.username = username
-    else:
-        st.session_state.logged_in = False
+# Função de login
+def login():
+    st.title("Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username in USERS and USERS[username] == password:
+            st.session_state.logged_in = True
+            st.session_state.username = username  # Salva o nome do usuário no estado da sessão
+            st.experimental_rerun()  # Força a atualização da página após login
+        else:
+            st.error("Credenciais incorretas. Tente novamente.")
 
-# Verifica se o usuário está logado
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    authenticate_user()
+# Configurações iniciais
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-if st.session_state.get('logged_in'):
-    # Carregar dados
-    data = load_data_from_athena()
-    
-    # Exibir menu lateral com opções fixas
-    st.sidebar.title(f'Bem-vindo, {st.session_state.username}')
-    menu = ['Veículos Finalizados', 'Termômetro de Prazo']
-    choice = st.sidebar.radio("Escolha o dashboard", menu, index=0)
+if 'username' not in st.session_state:
+    st.session_state.username = ""
 
-    # Processar e exibir dados de acordo com a escolha do dashboard
-    process_and_display_data(data, choice)
+# Tela de login ou tela de dashboard
+if not st.session_state.logged_in:
+    login()
 else:
-    st.error("Você precisa fazer login para acessar o dashboard.")
+    # Layout com menu lateral fixo
+    st.sidebar.title(f"Bem-vindo, {st.session_state.username}")  # Atualiza o título do menu lateral
+    st.sidebar.markdown("### Selecione o Dashboard")
+    dashboards = ["Veículos Finalizados", "Termômetro de Prazo", "Lista de Acessos"]
+    selected_dashboard = st.sidebar.radio("", dashboards)
 
+    # Layout com colunas
+    st.write(
+        "<style> .css-18e3d5x { display: flex; } .css-1e0y5nb { flex: 1; } </style>",
+        unsafe_allow_html=True
+    )
+
+    # Carrega dados
+    data = load_data_from_athena()
+
+    # Exibe dados conforme o dashboard selecionado
+    process_and_display_data(data, selected_dashboard)
