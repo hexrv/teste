@@ -13,7 +13,7 @@ USERS = {
 }
 
 # Função para carregar dados da AWS Athena com caching
-@st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
+@st.cache_data(ttl=150)  # Cache por 300 segundos (5 minutos)
 def load_data_from_athena():
     query = """
     SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
@@ -192,7 +192,7 @@ def process_and_display_data(data, dashboard):
 
 # Função de login
 def login():
-    st.title('Login')
+    st.title('Plataforma de Dados')
     st.write("Por favor, faça login para acessar o sistema.")
     username = st.text_input('Usuário')
     password = st.text_input('Senha', type='password')
@@ -214,8 +214,8 @@ else:
     data = load_data_from_athena()
     
     # Cria o menu lateral
-    st.sidebar.title(f"Bem-vindo, {username}!")
-    dashboard = st.sidebar.radio("Selecione o Dashboard", ('Veículos Finalizados', 'Termômetro de Prazo'))
+    st.sidebar.title(f"Olá, {username}")
+    dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização", ('Veículos Finalizados', 'Termômetro de Prazo'))
     
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
