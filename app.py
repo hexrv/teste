@@ -3,6 +3,7 @@ import pandas as pd
 import altair as alt
 import awswrangler as wr
 import boto3
+from datetime import datetime
 
 # Dicionário de usuários
 USERS = {
@@ -12,7 +13,18 @@ USERS = {
     "Marcelo.Alves": "Carbon@2021"
 }
 
- 
+# Verifica e configura as credenciais da AWS
+def configure_aws():
+    if "aws" in st.secrets:
+        region = st.secrets["aws"].get("region")
+        if region:
+            boto3.setup_default_session(region_name=region)
+            print(f"Região configurada corretamente: {region}")
+        else:
+            st.error("Região AWS não encontrada nos segredos.")
+    else:
+        st.error("Seção AWS não encontrada no arquivo de segredos.")
+
 # Função para carregar dados da AWS Athena com caching
 @st.cache_data(ttl=150)  # Cache por 150 segundos (2,5 minutos)
 def load_data_from_athena():
@@ -144,102 +156,84 @@ def process_and_display_data(data, dashboard):
 
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
-        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo]
-        data_filtrada_prazo['dentro_prazo'] = data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']
-        prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
-        prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
-            x=alt.X('dentro_prazo:N', title='Status do Prazo', axis=alt.Axis(labelAngle=0)),
-            y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
-            tooltip=['dentro_prazo', 'quantidade']
+        prazo_df = data[['modelo', 'marca', 'dt_contrato', 'dt_finalizacao', 'prazo']].dropna()
+        prazo_df['dentro_prazo'] = prazo_df.apply(lambda x: x['dt_finalizacao'] <= x['dt_contrato'] + pd.to_timedelta(x['prazo'], unit='d'), axis=1)
+        prazo_count = prazo_df['dentro_prazo'].value_counts().reset_index()
+        prazo_count.columns = ['Dentro do Prazo', 'Quantidade']
+        chart_prazo = alt.Chart(prazo_count).mark_bar().encode(
+            x=alt.X('Dentro do Prazo:N', title='Dentro do Prazo'),
+            y=alt.Y('Quantidade:Q', title='Quantidade'),
+            color=alt.Color('Dentro do Prazo:N', scale=alt.Scale(domain=['True', 'False'], range=['green', 'red'])),
+            tooltip=['Dentro do Prazo', 'Quantidade']
         ).properties(
             width=chart_width,
-            title='Veículos Finalizados - Prazo'
+            title='Veículos Finalizados Dentro e Fora do Prazo'
         )
         st.altair_chart(chart_prazo, use_container_width=True)
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_marca_selectbox')
-        data_filtrada_prazo_marca = data[data['mes'] == mes_selecionado_prazo_marca]
-        data_filtrada_prazo_marca['dentro_prazo'] = data_filtrada_prazo_marca['data_finalizacao'] <= data_filtrada_prazo_marca['dt_contrato']
-        prazo_marca_count = data_filtrada_prazo_marca.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        prazo_marca_count['dentro_prazo'] = prazo_marca_count['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        chart_prazo_marca = alt.Chart(prazo_marca_count).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),
-            y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
-            tooltip=['marca', 'dentro_prazo', 'quantidade']
+        marca_selecionada_prazo = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_prazo_selectbox')
+        prazo_marca_df = data[data['marca'] == marca_selecionada_prazo]
+        prazo_marca = prazo_marca_df.groupby('mes').agg({'prazo': 'mean'}).reset_index()
+        chart_prazo_marca = alt.Chart(prazo_marca).mark_line().encode(
+            x=alt.X('mes:O', title='Mês'),
+            y=alt.Y('prazo:Q', title='Prazo Médio'),
+            color=alt.Color('marca:N', title='Marca'),
+            tooltip=['mes', 'prazo']
         ).properties(
             width=chart_width,
-            title='Prazo por Marca'
+            title='Prazo Médio por Marca'
         )
         st.altair_chart(chart_prazo_marca, use_container_width=True)
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        mes_selecionado_calor = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_calor_selectbox')
-        data_filtrada_calor = data[data['mes'] == mes_selecionado_calor]
-        data_filtrada_calor['dentro_prazo'] = data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']
-        heatmap_data = data_filtrada_calor.groupby(['dia', 'dentro_prazo']).size().reset_index(name='quantidade')
-        heatmap_data['dentro_prazo'] = heatmap_data['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        heatmap_chart = alt.Chart(heatmap_data).mark_rect().encode(
-            x=alt.X('dia:O', title='Dia'),
-            y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
-            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='viridis')),
-            tooltip=['dia', 'dentro_prazo', 'quantidade']
+        heatmap_data = data[['mes', 'marca', 'modelo', 'prazo']]
+        heatmap_data = heatmap_data.groupby(['mes', 'marca', 'modelo']).size().reset_index(name='quantidade')
+        heatmap = alt.Chart(heatmap_data).mark_rect().encode(
+            x=alt.X('mes:O', title='Mês'),
+            y=alt.Y('marca:N', title='Marca'),
+            color=alt.Color('quantidade:Q', scale=alt.Scale(scheme='blues'), title='Quantidade'),
+            tooltip=['mes', 'marca', 'quantidade']
         ).properties(
             width=chart_width,
-            title='Mapa de Calor'
+            height=chart_height,
+            title='Mapa de Calor - Prazo'
         )
-        st.altair_chart(heatmap_chart, use_container_width=True)
+        st.altair_chart(heatmap, use_container_width=True)
 
-        # Configuração da página
-st.set_page_config(
-    page_title='Dashboard de Veículos',
-    page_icon=':car:'
-)
+def main():
+    st.title('Dashboard Carbon')
 
-# Função de login
-def login():
-    st.title('Plataforma de dados Carbon')
-    st.write("Por favor, faça login para acessar o sistema.")
-    username = st.text_input('Usuário')
-    password = st.text_input('Senha', type='password')
+    # Configura a AWS
+    configure_aws()
 
-    if st.button('Login'):
-        if USERS.get(username) == password:
-            st.session_state['user'] = username
-            st.experimental_rerun()
-        else:
-            st.error('Usuário ou senha inválidos')
-
-
-# Verifica o login
-if 'user' not in st.session_state:
-    login()
-else:
-    username = st.session_state['user']
-
-    # Carrega os dados
-    data = load_data_from_athena()
-        
-    # Cria o menu lateral
-    st.sidebar.title(f"Olá, {username}")
-    dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização.", ('Veículos Finalizados', 'Termômetro de Prazo'))
-    
-    # Processa e exibe os dados de acordo com o dashboard selecionado
-    process_and_display_data(data, dashboard)
-  
-if __name__ == '__main__':
-    # Verifica e configura as credenciais da AWS
-    if 'AWS_REGION' in st.secrets:
-        boto3.setup_default_session(region_name=st.secrets["AWS_REGION"])
-        print("Região configurada corretamente: ", st.secrets["AWS_REGION"])
+    # Verifica login
+    if 'username' not in st.session_state:
+        with st.form(key='login_form'):
+            username = st.text_input('Usuário')
+            password = st.text_input('Senha', type='password')
+            submitted = st.form_submit_button('Entrar')
+            
+            if submitted:
+                if username in USERS and USERS[username] == password:
+                    st.session_state.username = username
+                else:
+                    st.error('Usuário ou senha inválidos')
     else:
-        st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
+        st.write(f'Bem-vindo, {st.session_state.username}')
+
+        # Carrega dados
+        df = load_data_from_athena()
+
+        # Seleciona dashboard
+        dashboard = st.sidebar.selectbox('Selecione o Dashboard', ['Veículos Finalizados', 'Termômetro de Prazo'])
+
+        # Processa e exibe dados
+        process_and_display_data(df, dashboard)
+
+if __name__ == "__main__":
     main()
 
 
