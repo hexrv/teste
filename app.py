@@ -4,9 +4,6 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
-# Acesse a região dos segredos
-region = st.secrets["aws"]["region"]
-
 # Dicionário de usuários
 USERS = {
     "Henri.Santos": "Carbon@2024",
@@ -235,4 +232,14 @@ else:
     
     # Processa e exibe os dados de acordo com o dashboard selecionado
     process_and_display_data(data, dashboard)
+  
+if __name__ == '__main__':
+    # Verifica e configura as credenciais da AWS
+    if 'AWS_REGION' in st.secrets:
+        boto3.setup_default_session(region_name=st.secrets["AWS_REGION"])
+        print("Região configurada corretamente: ", st.secrets["AWS_REGION"])
+    else:
+        st.error("Região AWS não configurada. Verifique seu arquivo de segredos.")
+    main()
+
 
