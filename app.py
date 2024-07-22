@@ -1,244 +1,303 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-import awswrangler as wr
 from datetime import datetime
+import awswrangler as wr
 
-# Dicionário de usuários e senha
-USERS = {
-    "Henri.Santos": "Carbon@2024",
-    "Cassio.Luis": "Carbon@2023",
-    "Rafael.Augusto": "Carbon@2022",
-    "Marcelo.Alves": "Carbon@2021"
-}
+# Configurações iniciais
+st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
 
-# Defina o usuário administrador
-ADMIN_USER = "Henri.Santos"
+# Função para autenticação
+def authenticate(username, password):
+    return username == "henri.santos" and password == "Carbon@2024"
 
-# Função para carregar dados da AWS Athena com caching
-@st.cache_data(ttl=300)  # Cache por 300 segundos (5 minutos)
-def load_data_from_athena():
-    query = """
-    SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo
-    FROM awsdatacatalog.jira_sbm.vw_veiculos_finalizados
-    """
-    # Executa a consulta e retorna um DataFrame
-    df = wr.athena.read_sql_query(query, database='jira_sbm')
-    return df
+# Exibir a tela de login
+def show_login():
+    st.title("Plataforma de Dados")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if authenticate(username, password):
+            st.session_state.authenticated = True
+            st.session_state.username = username
+            st.success("Login successful")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid username or password")
 
-# Função para processar e exibir dados
-def process_and_display_data(data, dashboard):
-    # Verifica se a coluna dt_finalizacao está presente
-    if 'dt_finalizacao' in data.columns:
-        # Converte dt_finalizacao para datetime
-        data['data_finalizacao'] = pd.to_datetime(data['dt_finalizacao'], errors='coerce')
-        data.dropna(subset=['data_finalizacao'], inplace=True)
-    else:
-        st.error("Coluna 'dt_finalizacao' não encontrada na tabela.")
-        return
-    
-    # Renomeia colunas para facilitar uso
-    data.rename(columns={'marca': 'marca', 'modelo': 'modelo', 'prazo': 'prazo'}, inplace=True)
-    
-    # Converte a coluna prazo para numérico, tratando erros
-    data['prazo'] = pd.to_numeric(data['prazo'], errors='coerce')
-    
-    # Adiciona colunas de tempo
-    data['mes'] = data['data_finalizacao'].dt.to_period('M').astype(str)
-    data['semana'] = data['data_finalizacao'].dt.to_period('W').astype(str)
-    data['dia'] = data['data_finalizacao'].dt.date
-    data['ano'] = data['data_finalizacao'].dt.year
-    
-    # Adiciona coluna de semana numerada (de 1 a 4)
-    data['semana_numero'] = (data['data_finalizacao'].dt.day - 1) // 7 + 1
-    data['semana_descricao'] = data['data_finalizacao'].dt.strftime('%B %Y') + ' - Semana ' + data['semana_numero'].astype(str)
-    
-    # Obtém o mês atual
-    mes_atual = datetime.now().strftime('%Y-%m')
+# Verificar autenticação
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
 
-    # Configura o tamanho do gráfico
-    chart_width = 800
-    chart_height = 600
+if not st.session_state.authenticated:
+    show_login()
+else:
+    # Conexão com a fonte de dados
+    @st.cache_resource
+    def get_veiculos_data():
+        query = "SELECT * FROM vw_veiculos_finalizados"
+        df = wr.athena.read_sql_query(query, database="jira_sbm")
+        return df
 
-    if dashboard == 'Veículos Finalizados':
-        st.title('Veículos Finalizados')
+    @st.cache_resource
+    def get_kits_data():
+        query = "SELECT * FROM vw_vidros_kits"
+        df = wr.athena.read_sql_query(query, database="jira_sbm")
+        return df
+
+    veiculos_data = get_veiculos_data()
+    kits_data = get_kits_data()
+
+    # Processamento e exibição dos dados
+    def process_and_display_data(data, kits_data):
+        # Processamento dos dados de veículos
+        if 'dt_finalizacao' in data.columns:
+            data['dt_finalizacao'] = pd.to_datetime(data['dt_finalizacao'], errors='coerce')
+            data.dropna(subset=['dt_finalizacao'], inplace=True)
+        else:
+            st.error("Coluna 'dt_finalizacao' não encontrada na tabela de veículos.")
+            return
+        
+        # Processamento dos dados de kits
+        if 'dt_faturado' in kits_data.columns:
+            kits_data['dt_faturado'] = pd.to_datetime(kits_data['dt_faturado'], errors='coerce')
+            kits_data.dropna(subset=['dt_faturado'], inplace=True)
+        else:
+            st.error("Coluna 'dt_faturado' não encontrada na tabela de kits.")
+            return
+
+        kits_data['mes'] = kits_data['dt_faturado'].dt.to_period('M').astype(str)
+        kits_data['semana'] = kits_data['dt_faturado'].dt.to_period('W').astype(str)
+        kits_data['dia'] = kits_data['dt_faturado'].dt.date
+        kits_data['ano'] = kits_data['dt_faturado'].dt.year
+        kits_data['semana_numero'] = (kits_data['dt_faturado'].dt.day - 1) // 7 + 1
+        kits_data['semana_descricao'] = kits_data['dt_faturado'].dt.strftime('%B %Y') + ' - Semana ' + kits_data['semana_numero'].astype(str)
+        mes_atual = datetime.now().strftime('%Y-%m')
+
+        return kits_data, mes_atual
+
+    kits_data, mes_atual = process_and_display_data(veiculos_data, kits_data)
+
+    # Configurações dos dashboards
+    st.sidebar.title(f"Bem-vindo, {st.session_state.username.split('.')[0].capitalize()}")
+    dashboard = st.sidebar.selectbox("Selecione o Dashboard", ["Veículos Finalizados", "Termômetro de Prazo", "Kits Faturados"])
+
+    chart_width = 800  # Largura dos gráficos
+    chart_height = 400  # Altura dos gráficos
+
+    if dashboard == "Veículos Finalizados":
+        st.title("Veículos Finalizados")
 
         # 1. Veículos Finalizados por Mês
         st.subheader('Veículos Finalizados por Mês')
-        trend_monthly = data.groupby('mes').size().reset_index(name='quantidade')
-        chart_trend = alt.Chart(trend_monthly).mark_bar().encode(
-            x=alt.X('mes:O', title='Mês', axis=alt.Axis(labelAngle=0)),
+        veiculos_por_mes = veiculos_data.groupby(veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str)).size().reset_index(name='quantidade')
+        chart_veiculos_mes = alt.Chart(veiculos_por_mes).mark_bar().encode(
+            x=alt.X('dt_finalizacao:N', title='Mês', axis=alt.Axis(labelAngle=0)),  # Define o ângulo das labels do eixo X
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('mes:N', title='Mês', scale=alt.Scale(scheme='category20')),
-            tooltip=['mes', 'quantidade']
+            color=alt.Color('dt_finalizacao:N', title='Mês'),
+            tooltip=['dt_finalizacao', 'quantidade']
         ).properties(
             width=chart_width,
+            height=chart_height,
             title='Veículos Finalizados por Mês'
         )
-        st.altair_chart(chart_trend, use_container_width=True)
-        
-        # 2. Veículos Finalizados por Semana
+        st.altair_chart(chart_veiculos_mes, use_container_width=True)
+
+        # 2. Selecione o Mês para Veículos Finalizados por Semana
         st.subheader('Veículos Finalizados por Semana')
-        mes_selecionado = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='semanas_selectbox')
-        data_filtrada_semana = data[data['mes'] == mes_selecionado]
-        semana_count = data_filtrada_semana.groupby('semana_descricao').size().reset_index(name='quantidade')
-        chart_semana = alt.Chart(semana_count).mark_bar().encode(
-            x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=45)),
+        mes_selecionado = st.selectbox('Selecione o Mês', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique())
+        
+        # Filtrando os dados pelo mês selecionado
+        veiculos_mes_selecionado = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado]
+        veiculos_mes_selecionado['semana'] = veiculos_mes_selecionado['dt_finalizacao'].dt.to_period('W').astype(str)
+        veiculos_mes_selecionado['numero_semana'] = (veiculos_mes_selecionado['dt_finalizacao'].dt.day - 1) // 7 + 1
+        veiculos_mes_selecionado['semana_descricao'] = veiculos_mes_selecionado['numero_semana'].astype(str) + 'ª Semana'
+
+        # Contagem de veículos por semana
+        veiculos_por_semana = veiculos_mes_selecionado.groupby('semana_descricao').size().reset_index(name='quantidade')
+        veiculos_por_semana = veiculos_por_semana.sort_values('semana_descricao')
+
+        chart_veiculos_semana = alt.Chart(veiculos_por_semana).mark_bar().encode(
+            x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=0)),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('semana_descricao:N', title='Semana', scale=alt.Scale(scheme='category20')),
+            color=alt.Color('semana_descricao:N', title='Semana'),
             tooltip=['semana_descricao', 'quantidade']
         ).properties(
             width=chart_width,
-            title='Veículos Finalizados por Semana'
+            height=chart_height,
+            title=f'Veículos Finalizados por Semana ({mes_selecionado})'
         )
-        st.altair_chart(chart_semana, use_container_width=True)
+        st.altair_chart(chart_veiculos_semana, use_container_width=True)
 
         # 3. Veículos Finalizados por Marca
         st.subheader('Veículos Finalizados por Marca')
-        mes_selecionado_marca = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_selecionado_marca')
-        data_filtrada_marca = data[data['mes'] == mes_selecionado_marca]
-        marca_count = data_filtrada_marca.groupby('marca').size().reset_index(name='quantidade')
-        chart_marca = alt.Chart(marca_count).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
+        mes_selecionado_marca = st.selectbox('Selecione o Mês para Verificar as Marcas', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique())
+        
+        # Filtrando os dados pelo mês selecionado
+        veiculos_mes_marca = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado_marca]
+        veiculos_por_marca = veiculos_mes_marca.groupby('marca').size().reset_index(name='quantidade')
+        veiculos_por_marca = veiculos_por_marca.sort_values('quantidade', ascending=False)
+
+        chart_veiculos_marca = alt.Chart(veiculos_por_marca).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('marca:N', title='Marca', scale=alt.Scale(scheme='category20')),
+            color=alt.Color('marca:N', title='Marca'),
             tooltip=['marca', 'quantidade']
         ).properties(
             width=chart_width,
-            title='Veículos Finalizados por Marca'
+            height=chart_height,
+            title=f'Veículos Finalizados por Marca ({mes_selecionado_marca})'
         )
-        st.altair_chart(chart_marca, use_container_width=True)
+        st.altair_chart(chart_veiculos_marca, use_container_width=True)
 
         # 4. Veículos Finalizados por Modelo
         st.subheader('Veículos Finalizados por Modelo')
-        mes_selecionado_modelo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_modelo_selectbox')
-        marca_selecionada = st.selectbox('Selecione a Marca', data['marca'].unique(), key='marca_modelo_selectbox')
-        data_filtrada_modelo = data[(data['mes'] == mes_selecionado_modelo) & (data['marca'] == marca_selecionada)]
+        mes_selecionado_modelo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_modelo_selectbox')
+        marca_selecionada = st.selectbox('Selecione a Marca', veiculos_data['marca'].unique(), key='marca_modelo_selectbox')
+        data_filtrada_modelo = veiculos_data[(veiculos_data['mes'] == mes_selecionado_modelo) & (veiculos_data['marca'] == marca_selecionada)]
         
         if data_filtrada_modelo.empty:
             st.warning("Não há dados disponíveis para a combinação selecionada de mês e marca.")
-            return
-        
-        modelo_count = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
-        
-        if modelo_count.empty:
-            st.warning("Não há dados disponíveis para o modelo.")
-            return
-        
-        chart_modelo = alt.Chart(modelo_count).mark_bar().encode(
-            x=alt.X('modelo:N', title='Modelo', axis=alt.Axis(labelAngle=0)),
-            y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('modelo:N', title='Modelo', scale=alt.Scale(scheme='category20')),
-            tooltip=['modelo', 'quantidade']
-        ).properties(
-            width=chart_width,
-            title='Veículos Finalizados por Modelo'
-        )
-        st.altair_chart(chart_modelo, use_container_width=True)
+        else:
+            veiculos_por_modelo = data_filtrada_modelo.groupby('modelo').size().reset_index(name='quantidade')
+            chart_veiculos_modelo = alt.Chart(veiculos_por_modelo).mark_bar().encode(
+                x=alt.X('modelo:N', title='Modelo',axis=alt.Axis(labelAngle=0)),
+                y=alt.Y('quantidade:Q', title='Quantidade'),
+                color=alt.Color('modelo:N', title='Modelo'),
+                tooltip=['modelo', 'quantidade']
+            ).properties(
+                width=chart_width,
+                height=chart_height,
+                title=f'Veículos Finalizados por Modelo ({mes_selecionado_modelo} - {marca_selecionada})'
+            )
+            st.altair_chart(chart_veiculos_modelo, use_container_width=True)
 
-    elif dashboard == 'Termômetro de Prazo':
-        st.title('Termômetro de Prazo')
+    elif dashboard == "Termômetro de Prazo":
+        st.title("Termômetro de Prazo")
 
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
-        data_filtrada_prazo = data[data['mes'] == mes_selecionado_prazo].copy()
-        data_filtrada_prazo['dentro_prazo'] = (data_filtrada_prazo['data_finalizacao'] <= data_filtrada_prazo['dt_contrato']).fillna(False)
-        prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
-        prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        
-        chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
-            x=alt.X('dentro_prazo:N', title='Status do Prazo'),
+        veiculos_data['no_prazo'] = veiculos_data['dt_finalizacao'] <= veiculos_data['dt_contrato']
+        veiculos_prazo = veiculos_data.groupby('no_prazo').size().reset_index(name='quantidade')
+        veiculos_prazo['Prazo'] = veiculos_prazo['no_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+
+        chart_prazo = alt.Chart(veiculos_prazo).mark_bar().encode(
+            x=alt.X('Prazo:N', title='Prazo'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
-            tooltip=['dentro_prazo', 'quantidade']
+            color=alt.Color('Prazo:N', title='Prazo'),
+            tooltip=['Prazo', 'quantidade']
         ).properties(
             width=chart_width,
-            title='Veículos Finalizados Dentro/Fora do Prazo'
+            height=chart_height,
+            title='Veículos Finalizados - Prazo'
         )
         st.altair_chart(chart_prazo, use_container_width=True)
 
         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_marca_prazo = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_marca_prazo_selectbox')
-        data_filtrada_marca_prazo = data[data['mes'] == mes_selecionado_marca_prazo].copy()
-        data_filtrada_marca_prazo['dentro_prazo'] = (data_filtrada_marca_prazo['data_finalizacao'] <= data_filtrada_marca_prazo['dt_contrato']).fillna(False)
-        marca_prazo_status = data_filtrada_marca_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
-        marca_prazo_status['dentro_prazo'] = marca_prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-        chart_marca_prazo = alt.Chart(marca_prazo_status).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
-            y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
-            tooltip=['marca', 'dentro_prazo', 'quantidade']
-        ).properties(
-            width=chart_width,
-            title='Prazo por Marca'
-        )
-        st.altair_chart(chart_marca_prazo, use_container_width=True)
-
-        # 3. Mapa de Calor
-        st.subheader('Mapa de Calor')
-        mes_selecionado_calor = st.selectbox('Selecione o Mês', data['mes'].unique(), index=list(data['mes'].unique()).index(mes_atual), key='mes_calor_selectbox')
-        data_filtrada_calor = data[data['mes'] == mes_selecionado_calor].copy()
-        data_filtrada_calor['dentro_prazo'] = (data_filtrada_calor['data_finalizacao'] <= data_filtrada_calor['dt_contrato']).fillna(False)
-        data_filtrada_calor['semana_numero'] = (data_filtrada_calor['data_finalizacao'].dt.day - 1) // 7 + 1
-        calor_data = data_filtrada_calor.groupby(['semana_numero', 'dentro_prazo']).size().reset_index(name='quantidade')
-        calor_data['dentro_prazo'] = calor_data['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês para Verificar o Prazo por Marca', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(), key='mes_prazo_selectbox')
         
-        chart_heatmap = alt.Chart(calor_data).mark_rect().encode(
-            x=alt.X('semana_numero:O', title='Semana do Mês'),
-            y=alt.Y('dentro_prazo:N', title='Status do Prazo'),
-            color=alt.Color('quantidade:Q', title='Quantidade', scale=alt.Scale(scheme='reds')),
-            tooltip=['semana_numero', 'dentro_prazo', 'quantidade']
+        # Filtrando os dados pelo mês selecionado
+        veiculos_mes_prazo = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado_prazo]
+        veiculos_mes_prazo['no_prazo'] = veiculos_mes_prazo['dt_finalizacao'] <= veiculos_mes_prazo['dt_contrato']
+        veiculos_prazo_marca = veiculos_mes_prazo.groupby(['marca', 'no_prazo']).size().reset_index(name='quantidade')
+        veiculos_prazo_marca['Prazo'] = veiculos_prazo_marca['no_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+
+        chart_prazo_marca = alt.Chart(veiculos_prazo_marca).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca'),
+            y=alt.Y('quantidade:Q', title='Quantidade'),
+            color=alt.Color('Prazo:N', title='Prazo'),
+            tooltip=['marca', 'Prazo', 'quantidade']
         ).properties(
             width=chart_width,
             height=chart_height,
-            title='Mapa de Calor - Finalização Dentro/Fora do Prazo'
+            title=f'Prazo por Marca ({mes_selecionado_prazo})'
         )
-        st.altair_chart(chart_heatmap, use_container_width=True)
+        st.altair_chart(chart_prazo_marca, use_container_width=True)
+
+        # 3. Mapa de Calor
+        st.subheader('Mapa de Calor')
+        mes_selecionado_mapa_calor = st.selectbox('Selecione o Mês para Verificar o Mapa de Calor', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(), key='mes_mapa_calor_selectbox')
         
-st.set_page_config(
-    page_title='Dashboard de Veículos',
-    page_icon=':car:'
-)
-# Função de login
-def login():
-    st.title('Plataforma de Dados')
-    st.write("Por favor, faça login para acessar o sistema.")
-    username = st.text_input('Usuário')
-    password = st.text_input('Senha', type='password')
+        # Filtrando os dados pelo mês selecionado
+        veiculos_mes_mapa_calor = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado_mapa_calor]
+        veiculos_mes_mapa_calor['dia'] = veiculos_mes_mapa_calor['dt_finalizacao'].dt.day
+        veiculos_mes_mapa_calor['no_prazo'] = veiculos_mes_mapa_calor['dt_finalizacao'] <= veiculos_mes_mapa_calor['dt_contrato']
+        veiculos_mapa_calor = veiculos_mes_mapa_calor.groupby(['dia', 'no_prazo']).size().reset_index(name='quantidade')
+        veiculos_mapa_calor['Prazo'] = veiculos_mapa_calor['no_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
 
-    if st.button('Login'):
-        if USERS.get(username) == password:
-            st.session_state['user'] = username
-            st.experimental_rerun()
-        else:
-            st.error('Usuário ou senha inválidos')
+        chart_mapa_calor = alt.Chart(veiculos_mapa_calor).mark_rect().encode(
+            x=alt.X('dia:O', title='Dia'),
+            y=alt.Y('Prazo:N', title='Prazo'),
+            color=alt.Color('quantidade:Q', title='Quantidade'),
+            tooltip=['dia', 'Prazo', 'quantidade']
+        ).properties(
+            width=chart_width,
+            height=chart_height,
+            title=f'Mapa de Calor ({mes_selecionado_mapa_calor})'
+        )
+        st.altair_chart(chart_mapa_calor, use_container_width=True)
 
-# Verifica o login
-if 'user' not in st.session_state:
-    login()
-else:
-    username = st.session_state['user']
+    elif dashboard == "Kits Faturados":
+        st.title("Kits Faturados")
+
+        # 1. Kits Terminados - Atual
+        kits_terminados_atual = kits_data[kits_data['mes'] == mes_atual]['key'].nunique()
+
+        # 2. Kits Faturados - D-1
+        dia_anterior = (datetime.now() - pd.Timedelta(days=1)).date()
+        kits_faturados_d1 = kits_data[kits_data['dia'] == dia_anterior]['key'].nunique()
+
+        # 3. Kits Faturados - Semana Atual
+        semana_atual = kits_data[kits_data['dt_faturado'].dt.isocalendar().week == datetime.now().isocalendar()[1]]
+        kits_faturados_semana_atual = semana_atual['key'].nunique()
+
+        # 4. Kits Faturados - Mês Atual
+        kits_faturados_mes_atual = kits_data[kits_data['mes'] == mes_atual]['key'].nunique()
+
+        # Exibição dos cards lado a lado
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.markdown(f"### Kits Terminados - Atual\n# {kits_terminados_atual}")
+
+        with col2:
+            st.markdown(f"### Kits Faturados - D-1\n# {kits_faturados_d1}")
+
+        with col3:
+            st.markdown(f"### Kits Faturados - Semana Atual\n# {kits_faturados_semana_atual}")
+
+        with col4:
+            st.markdown(f"### Kits Faturados - Mês Atual\n# {kits_faturados_mes_atual}")
+
+        # Outros gráficos para "Kits Faturados"
+        # 2. Selecione o Mês para Veículos Finalizados por Semana
+        st.subheader('Kits Finalizados por Semana')
+        mes_selecionado = st.selectbox('Selecione o Mês', kits_data['dt_faturado'].dt.to_period('M').astype(str).unique())
+        
+        # Filtrando os dados pelo mês selecionado
+        veiculos_mes_selecionado = kits_data[kits_data['dt_faturado'].dt.to_period('M').astype(str) == mes_selecionado]
+        veiculos_mes_selecionado['semana'] = veiculos_mes_selecionado['dt_faturado'].dt.to_period('W').astype(str)
+        veiculos_mes_selecionado['numero_semana'] = (veiculos_mes_selecionado['dt_faturado'].dt.day - 1) // 7 + 1
+        veiculos_mes_selecionado['semana_descricao'] = veiculos_mes_selecionado['numero_semana'].astype(str) + 'ª Semana'
+
+        # Contagem de veículos por semana
+        veiculos_por_semana = veiculos_mes_selecionado.groupby('semana_descricao').size().reset_index(name='quantidade')
+        veiculos_por_semana = veiculos_por_semana.sort_values('semana_descricao')
+
+        chart_veiculos_semana = alt.Chart(veiculos_por_semana).mark_bar().encode(
+            x=alt.X('semana_descricao:N', title='Semana', axis=alt.Axis(labelAngle=0)),
+            y=alt.Y('quantidade:Q', title='Quantidade'),
+            color=alt.Color('semana_descricao:N', title='Semana'),
+            tooltip=['semana_descricao', 'quantidade']
+        ).properties(
+            width=chart_width,
+            height=chart_height,
+            title=f'Kits Finalizados por Semana ({mes_selecionado})'
+        )
+        st.altair_chart(chart_veiculos_semana, use_container_width=True)
+
+        
     
-    # Cria o menu lateral
-    st.sidebar.title(f"Olá, {username.split('.')[0]}")
-    dashboard = st.sidebar.radio("Selecione o dashboard desejado abaixo para visualização", ('Veículos Finalizados', 'Termômetro de Prazo'))
-    
-    # Exibe opções de gerenciamento se o usuário for o administrador
-    if username == ADMIN_USER:
-        st.sidebar.subheader('Gerenciamento e Configurações')
-        st.sidebar.markdown("[Gerenciar Configurações](#)")
-        st.sidebar.markdown("[Outras Opções](#)")
-    
-    # Carrega os dados
-    data = load_data_from_athena()
-    
-    # Processa e exibe os dados de acordo com o dashboard selecionado
-    process_and_display_data(data, dashboard)
-
-
-
-
 
 
