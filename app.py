@@ -4,6 +4,8 @@ import altair as alt
 import awswrangler as wr
 from datetime import datetime
 
+region = st.secrets["aws"]["region"]
+
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
 
