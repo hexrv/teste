@@ -2,11 +2,19 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
-import os
 from datetime import datetime
 
-os.environ['AWS_REGION'] = 'us-west-2'
+# Acesso aos segredos
+aws_region = st.secrets["aws"]["region"]
+aws_access_key_id = st.secrets["aws"]["aws_access_key_id"]
+aws_secret_access_key = st.secrets["aws"]["aws_secret_access_key"]
 
+# Configurar o awswrangler para usar os segredos
+wr.config.update({
+    "region": aws_region,
+    "aws_access_key_id": aws_access_key_id,
+    "aws_secret_access_key": aws_secret_access_key
+})
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
