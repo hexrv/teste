@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
+import boto3
 from datetime import datetime
 
-region = st.secrets["aws"]["region"]
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
