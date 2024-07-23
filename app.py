@@ -58,6 +58,12 @@ else:
             st.error("Coluna 'dt_finalizacao' não encontrada na tabela de veículos.")
             return
         
+         # Adiciona colunas de tempo
+        data['mes'] = data['dt_finalizacao'].dt.to_period('M').astype(str)
+        data['semana'] = data['dt_finalizacao'].dt.to_period('W').astype(str)
+        data['dia'] = data['dt_finalizacao'].dt.date
+        data['ano'] = data['dt_finalizacao'].dt.to_period('a').astype(str)
+        
         # Processamento dos dados de kits
         if 'dt_faturado' in kits_data.columns:
             kits_data['dt_faturado'] = pd.to_datetime(kits_data['dt_faturado'], errors='coerce')
@@ -87,6 +93,7 @@ else:
 
     if dashboard == "Veículos Finalizados":
         st.title("Veículos Finalizados")
+        
 
         # 1. Veículos Finalizados por Mês
         st.subheader('Veículos Finalizados por Mês')
@@ -177,43 +184,40 @@ else:
 
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
-        veiculos_data['no_prazo'] = veiculos_data['dt_finalizacao'] <= veiculos_data['dt_contrato']
-        veiculos_prazo = veiculos_data.groupby('no_prazo').size().reset_index(name='quantidade')
-        veiculos_prazo['Prazo'] = veiculos_prazo['no_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-
-        chart_prazo = alt.Chart(veiculos_prazo).mark_bar().encode(
-            x=alt.X('Prazo:N', title='Prazo'),
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
+        data_filtrada_prazo = veiculos_data[veiculos_data['mes'] == mes_selecionado_prazo].copy()
+        data_filtrada_prazo['dentro_prazo'] = (data_filtrada_prazo['dt_finalizacao'] <= data_filtrada_prazo['dt_contrato']).fillna(False)
+        prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
+        prazo_status['dentro_prazo'] = prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+        
+        chart_prazo = alt.Chart(prazo_status).mark_bar().encode(
+            x=alt.X('dentro_prazo:N', title='Status do Prazo'),
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('Prazo:N', title='Prazo'),
-            tooltip=['Prazo', 'quantidade']
+            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
+            tooltip=['dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
-            height=chart_height,
-            title='Veículos Finalizados - Prazo'
+            title='Veículos Finalizados Dentro/Fora do Prazo'
         )
         st.altair_chart(chart_prazo, use_container_width=True)
 
-        # 2. Prazo por Marca
+         # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês para Verificar o Prazo por Marca', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(), key='mes_prazo_selectbox')
-        
-        # Filtrando os dados pelo mês selecionado
-        veiculos_mes_prazo = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado_prazo]
-        veiculos_mes_prazo['no_prazo'] = veiculos_mes_prazo['dt_finalizacao'] <= veiculos_mes_prazo['dt_contrato']
-        veiculos_prazo_marca = veiculos_mes_prazo.groupby(['marca', 'no_prazo']).size().reset_index(name='quantidade')
-        veiculos_prazo_marca['Prazo'] = veiculos_prazo_marca['no_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
-
-        chart_prazo_marca = alt.Chart(veiculos_prazo_marca).mark_bar().encode(
-            x=alt.X('marca:N', title='Marca'),
+        mes_selecionado_marca_prazo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_marca_prazo_selectbox')
+        data_filtrada_marca_prazo = veiculos_data[veiculos_data['mes'] == mes_selecionado_marca_prazo].copy()
+        data_filtrada_marca_prazo['dentro_prazo'] = (data_filtrada_marca_prazo['dt_finalizacao'] <= data_filtrada_marca_prazo['dt_contrato']).fillna(False)
+        marca_prazo_status = data_filtrada_marca_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
+        marca_prazo_status['dentro_prazo'] = marca_prazo_status['dentro_prazo'].map({True: 'Dentro do Prazo', False: 'Fora do Prazo'})
+        chart_marca_prazo = alt.Chart(marca_prazo_status).mark_bar().encode(
+            x=alt.X('marca:N', title='Marca', axis=alt.Axis(labelAngle=90)),  # Legenda do eixo x na vertical
             y=alt.Y('quantidade:Q', title='Quantidade'),
-            color=alt.Color('Prazo:N', title='Prazo'),
-            tooltip=['marca', 'Prazo', 'quantidade']
+            color=alt.Color('dentro_prazo:N', title='Status do Prazo', scale=alt.Scale(scheme='category20')),
+            tooltip=['marca', 'dentro_prazo', 'quantidade']
         ).properties(
             width=chart_width,
-            height=chart_height,
-            title=f'Prazo por Marca ({mes_selecionado_prazo})'
+            title='Prazo por Marca'
         )
-        st.altair_chart(chart_prazo_marca, use_container_width=True)
+        st.altair_chart(chart_marca_prazo, use_container_width=True)
 
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
@@ -256,21 +260,82 @@ else:
         kits_faturados_mes_atual = kits_data[kits_data['mes'] == mes_atual]['key'].nunique()
 
         # Exibição dos cards lado a lado
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.markdown(f"### Kits Terminados - Atual\n# {kits_terminados_atual}")
+         st.markdown(f"""
+        <div style="
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
+            margin-bottom: 20px;
+        ">
+            <h5 style="margin-bottom: 10px;">Kits Faturados - D-1</h5>
+            <p style="font-size: 36px; margin-top: 0;"><strong>{kits_faturados_d1}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
 
         with col2:
-            st.markdown(f"### Kits Faturados - D-1\n# {kits_faturados_d1}")
+         st.markdown(f"""
+        <div style="
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
+            margin-bottom: 20px;
+        ">
+            <h5 style="margin-bottom: 10px;">Kits Faturados - Semana Atual</h5>
+            <p style="font-size: 36px; margin-top: 0;"><strong>{kits_faturados_semana_atual}</strong></p>
+        </div>
+         """, unsafe_allow_html=True)
 
         with col3:
-            st.markdown(f"### Kits Faturados - Semana Atual\n# {kits_faturados_semana_atual}")
+         st.markdown(f"""
+        <div style="
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
+            margin-bottom: 20px;
+        ">
+            <h5 style="margin-bottom: 10px;">Kits Faturados - Mês Atual</h5>
+            <p style="font-size: 36px; margin-top: 0;"><strong>{kits_faturados_mes_atual}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
+         
+        # 1. Selecione o Mês para Kits Faturados por Mês
+        st.subheader('Kits Faturados por Mês')
+        mes_selecionado = st.selectbox('Selecione o ano', kits_data['dt_faturado'].dt.to_period('a').astype(str).unique())
 
-        with col4:
-            st.markdown(f"### Kits Faturados - Mês Atual\n# {kits_faturados_mes_atual}")
+        # Filtrando os dados pelo mês selecionado
+        kits_mes_selecionado = kits_data[kits_data['dt_faturado'].dt.to_period('a').astype(str) == mes_selecionado]
 
-        # Outros gráficos para "Kits Faturados"
+        # Contagem de kits por mês
+        kits_por_mes = kits_mes_selecionado.groupby(kits_mes_selecionado['dt_faturado'].dt.to_period('M')).size().reset_index(name='quantidade')
+        kits_por_mes = kits_por_mes.rename(columns={'dt_faturado': 'mes'})
+        kits_por_mes['mes'] = kits_por_mes['mes'].astype(str)
+
+        # Criando o gráfico
+        chart_kits_mes = alt.Chart(kits_por_mes).mark_bar().encode(
+            x=alt.X('mes:N', title='Mês', axis=alt.Axis(labelAngle=0)),
+            y=alt.Y('quantidade:Q', title='Quantidade'),
+            color=alt.Color('mes:N', title='Mês'),
+            tooltip=['mes', 'quantidade']
+        ).properties(
+          width=chart_width,
+          height=chart_height,
+          title=f'Kits Faturados por Mês ({mes_selecionado})'
+        )
+
+        st.altair_chart(chart_kits_mes, use_container_width=True) 
+
         # 2. Selecione o Mês para Veículos Finalizados por Semana
         st.subheader('Kits Finalizados por Semana')
         mes_selecionado = st.selectbox('Selecione o Mês', kits_data['dt_faturado'].dt.to_period('M').astype(str).unique())
