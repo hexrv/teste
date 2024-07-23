@@ -2,9 +2,11 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
-import boto3
 from datetime import datetime
 
+aws_access_key_id = st.secrets["aws"]["aws_access_key_id"]
+aws_secret_access_key = st.secrets["aws"]["aws_secret_access_key"]
+region_name = st.secrets["aws"]["region_name"]
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
