@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
-from datetime import datetime
 import awswrangler as wr
+from datetime import datetime
+
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
