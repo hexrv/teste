@@ -2,16 +2,15 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import awswrangler as wr
-from datetime import datetime
 import boto3
-
+from datetime import datetime
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
 
 # Função para autenticação
 def authenticate(username, password):
-    return username == "henri.santos","Cassio.teste" and password == "Carbon@2024"
+    return username == "henri.santos" and password == "Carbon@2024"
 
 # Exibir a tela de login
 def show_login():
@@ -22,10 +21,10 @@ def show_login():
         if authenticate(username, password):
             st.session_state.authenticated = True
             st.session_state.username = username
-            st.success("Login successful")
+            st.success("Login bem-sucedido")
             st.experimental_rerun()
         else:
-            st.error("Invalid username or password")
+            st.error("Nome de usuário ou senha inválidos")
 
 # Verificar autenticação
 if 'authenticated' not in st.session_state:
@@ -34,17 +33,27 @@ if 'authenticated' not in st.session_state:
 if not st.session_state.authenticated:
     show_login()
 else:
-    # Conexão com a fonte de dados
-    @st.cache_resource
+    # Configurar região AWS
+    boto3.setup_default_session(region_name='us-east-1')  # Substitua pela sua região
+
+    @st.cache_resource(ttl=300)  # Cache de 5 minutos para melhorar o desempenho
     def get_veiculos_data():
         query = "SELECT * FROM vw_veiculos_finalizados"
-        df = wr.athena.read_sql_query(query, database="jira_sbm")
+        try:
+            df = wr.athena.read_sql_query(query, database="jira_sbm")
+        except Exception as e:
+            st.error(f"Erro ao conectar com o Athena: {e}")
+            return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
         return df
 
-    @st.cache_resource
+    @st.cache_resource(ttl=300)  # Cache de 5 minutos para melhorar o desempenho
     def get_kits_data():
         query = "SELECT * FROM vw_vidros_kits"
-        df = wr.athena.read_sql_query(query, database="jira_sbm")
+        try:
+            df = wr.athena.read_sql_query(query, database="jira_sbm")
+        except Exception as e:
+            st.error(f"Erro ao conectar com o Athena: {e}")
+            return pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
         return df
 
     veiculos_data = get_veiculos_data()
@@ -58,9 +67,9 @@ else:
             data.dropna(subset=['dt_finalizacao'], inplace=True)
         else:
             st.error("Coluna 'dt_finalizacao' não encontrada na tabela de veículos.")
-            return
+            return None, None
         
-         # Adiciona colunas de tempo
+        # Adiciona colunas de tempo
         data['mes'] = data['dt_finalizacao'].dt.to_period('M').astype(str)
         data['semana'] = data['dt_finalizacao'].dt.to_period('W').astype(str)
         data['dia'] = data['dt_finalizacao'].dt.date
@@ -72,7 +81,7 @@ else:
             kits_data.dropna(subset=['dt_faturado'], inplace=True)
         else:
             st.error("Coluna 'dt_faturado' não encontrada na tabela de kits.")
-            return
+            return None, None
 
         kits_data['mes'] = kits_data['dt_faturado'].dt.to_period('M').astype(str)
         kits_data['semana'] = kits_data['dt_faturado'].dt.to_period('W').astype(str)
@@ -86,12 +95,13 @@ else:
 
     kits_data, mes_atual = process_and_display_data(veiculos_data, kits_data)
 
-    # Configurações dos dashboards
-    st.sidebar.title(f"Bem-vindo, {st.session_state.username.split('.')[0].capitalize()}")
-    dashboard = st.sidebar.selectbox("Selecione o Dashboard", ["Veículos Finalizados", "Termômetro de Prazo", "Kits Faturados"])
+    if kits_data is not None and veiculos_data is not None:
+        # Configurações dos dashboards
+        st.sidebar.title(f"Bem-vindo, {st.session_state.username.split('.')[0].capitalize()}")
+        dashboard = st.sidebar.selectbox("Selecione o Dashboard", ["Veículos Finalizados", "Termômetro de Prazo", "Kits Faturados"])
 
-    chart_width = 800  # Largura dos gráficos
-    chart_height = 400  # Altura dos gráficos
+        chart_width = 800  # Largura dos gráficos
+        chart_height = 400  # Altura dos gráfico
 
     if dashboard == "Veículos Finalizados":
         st.title("Veículos Finalizados")
@@ -402,8 +412,9 @@ else:
            st.altair_chart(chart_veiculos_dia, use_container_width=True)
         else:
            st.warning("Selecione um intervalo válido.")
+       
 
-        
+      
     
 
 
