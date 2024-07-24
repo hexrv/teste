@@ -3,17 +3,15 @@ import pandas as pd
 import altair as alt
 import awswrangler as wr
 from datetime import datetime
+import boto3
 
-aws_access_key_id = st.secrets["aws"]["aws_access_key_id"]
-aws_secret_access_key = st.secrets["aws"]["aws_secret_access_key"]
-region_name = st.secrets["aws"]["region_name"]
 
 # Configurações iniciais
 st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
 
 # Função para autenticação
 def authenticate(username, password):
-    return username == "henri.santos" and password == "Carbon@2024"
+    return username == "henri.santos","Cassio.teste" and password == "Carbon@2024"
 
 # Exibir a tela de login
 def show_login():
@@ -273,8 +271,8 @@ else:
             border: 2px solid #ddd;
             border-radius: 10px;
             padding: 20px;
-            background-color: #f9f9f9;
-            box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
+            background-color: #ffffff;
+            #box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
             margin-bottom: 20px;
         ">
             <h5 style="margin-bottom: 10px;">Kits Faturados - D-1</h5>
@@ -289,8 +287,8 @@ else:
             border: 2px solid #ddd;
             border-radius: 10px;
             padding: 20px;
-            background-color: #f9f9f9;
-            box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
+            background-color: #ffffff;
+            #box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
             margin-bottom: 20px;
         ">
             <h5 style="margin-bottom: 10px;">Kits Faturados - Semana Atual</h5>
@@ -305,8 +303,8 @@ else:
             border: 2px solid #ddd;
             border-radius: 10px;
             padding: 20px;
-            background-color: #f9f9f9;
-            box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
+            background-color: #ffffff;
+            #box-shadow: 2px 2px 2px rgba(166, 202, 145, 1);
             margin-bottom: 20px;
         ">
             <h5 style="margin-bottom: 10px;">Kits Faturados - Mês Atual</h5>
@@ -365,6 +363,45 @@ else:
             title=f'Kits Finalizados por Semana ({mes_selecionado})'
         )
         st.altair_chart(chart_veiculos_semana, use_container_width=True)
+
+
+        st.subheader('Kits Finalizados por Dia')
+
+        # Filtrar apenas os dias que têm dados disponíveis
+        dias_disponiveis = kits_data['dt_faturado'].unique()
+
+        # Seletor de período
+        data_inicial, data_final = st.date_input(
+           "Selecione o período",
+           [dias_disponiveis.min(), dias_disponiveis.max()],
+           min_value=dias_disponiveis.min(),
+           max_value=dias_disponiveis.max()
+        )
+
+        # Verificar se a seleção é válida (evita erro quando o usuário não seleciona um intervalo válido)
+        if data_inicial and data_final and data_inicial <= data_final:
+           # Filtrando os dados pelo período selecionado
+           veiculos_periodo_selecionado = kits_data[(kits_data['dt_faturado'] >= pd.to_datetime(data_inicial)) & (kits_data['dt_faturado'] <= pd.to_datetime(data_final))]
+
+           # Contagem de veículos por dia
+           veiculos_por_dia = veiculos_periodo_selecionado.groupby(veiculos_periodo_selecionado['dt_faturado'].dt.date).size().reset_index(name='quantidade')
+           veiculos_por_dia = veiculos_por_dia.sort_values('dt_faturado')
+
+           # Criação do gráfico com Altair (gráfico de linha)
+           chart_veiculos_dia = alt.Chart(veiculos_por_dia).mark_line(point=True).encode(
+              x=alt.X('dt_faturado:T', title='Dia'),
+              y=alt.Y('quantidade:Q', title='Quantidade'),
+              tooltip=['dt_faturado', 'quantidade']
+            ).properties(
+             width=chart_width,
+             height=chart_height,
+             title=f'Kits Finalizados por Dia ({data_inicial} a {data_final})'
+            )
+
+           # Exibição do gráfico no Streamlit
+           st.altair_chart(chart_veiculos_dia, use_container_width=True)
+        else:
+           st.warning("Selecione um intervalo válido.")
 
         
     
