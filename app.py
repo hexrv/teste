@@ -36,13 +36,13 @@ else:
     # Conexão com a fonte de dados
     @st.cache_resource
     def get_veiculos_data():
-        query = "SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo * FROM awsdatacatalog.jira_sbm.vw_veiculos_finalizados"
+        query = """SELECT status, key, modelo, marca, dt_finalizacao, summary, issuetype, dt_contrato, prazo * FROM awsdatacatalog.jira_sbm.vw_veiculos_finalizados"""
         df = wr.athena.read_sql_query(query, database="jira_sbm")
         return df
 
     @st.cache_resource
     def get_kits_data():
-        query = "SELECT * FROM awscatalog.jira_sbm.vw_vidros_kits"
+        query = """SELECT * FROM awscatalog.jira_sbm.vw_vidros_kits"""
         df = wr.athena.read_sql_query(query, database="jira_sbm")
         return df
 
