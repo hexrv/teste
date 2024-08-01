@@ -5,7 +5,7 @@ import awswrangler as wr
 from datetime import datetime
 
 # Configurações iniciais
-st.set_page_config(page_title="Dashboard de Veículos e Kits", layout="wide")
+st.set_page_config(page_title="Dashboard de Veículos e Kits")
 @st.cache_data(ttl=300)
 
 # Função para autenticação
@@ -88,13 +88,34 @@ else:
     # Configurações dos dashboards
     st.sidebar.title(f"Bem-vindo, {st.session_state.username.split('.')[0].capitalize()}")
     dashboard = st.sidebar.selectbox("Selecione o Dashboard", ["Veículos Finalizados", "Termômetro de Prazo", "Kits Faturados"])
+    st.logo("logo.png")
 
-    chart_width = 800  # Largura dos gráficos
+    chart_width = 400  # Largura dos gráficos
     chart_height = 400  # Altura dos gráficos
 
     if dashboard == "Veículos Finalizados":
         st.title("Veículos Finalizados")
+
+        # Campo de entrada para o usuário pesquisar pelo número da OS
+        os_number = st.text_input('Digite o número da OS para pesquisa:', '')
+
+        # Verificar se o usuário inseriu um número de OS para pesquisa
+        if os_number:
+            # Filtrar os dados com base na pesquisa do usuário
+            filtered_data = veiculos_data[veiculos_data['summary'].str.contains(os_number, case=False, na=False)]
+
+            # Convertendo colunas para o tipo datetime
+            filtered_data['dt_finalizacao'] = pd.to_datetime(filtered_data['dt_finalizacao'], errors='coerce').dt.tz_localize(None)
+            filtered_data['dt_contrato'] = pd.to_datetime(filtered_data['dt_contrato'], errors='coerce').dt.tz_localize(None)
+
+            # Adicionar uma coluna indicando se foi finalizado com atraso
+            filtered_data['atrasado'] = filtered_data.apply(lambda row: 'Sim' if row['dt_finalizacao'] > row['dt_contrato'] else 'Não', axis=1)
+
+            # Mostrar os resultados em uma tabela interativa
+            st.subheader('Resultados da Pesquisa')
+            st.dataframe(filtered_data[['summary', 'marca', 'modelo', 'dt_finalizacao', 'dt_contrato', 'atrasado']])
         
+        st.divider()
 
         # 1. Veículos Finalizados por Mês
         st.subheader('Veículos Finalizados por Mês')
@@ -111,9 +132,11 @@ else:
         )
         st.altair_chart(chart_veiculos_mes, use_container_width=True)
 
+        st.divider()
+
         # 2. Selecione o Mês para Veículos Finalizados por Semana
         st.subheader('Veículos Finalizados por Semana')
-        mes_selecionado = st.selectbox('Selecione o Mês', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique())
+        mes_selecionado = st.selectbox('Selecione o Mês', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(), index=len(veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique()) - 10)
         
         # Filtrando os dados pelo mês selecionado
         veiculos_mes_selecionado = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado]
@@ -137,9 +160,11 @@ else:
         )
         st.altair_chart(chart_veiculos_semana, use_container_width=True)
 
+        st.divider()
+
         # 3. Veículos Finalizados por Marca
         st.subheader('Veículos Finalizados por Marca')
-        mes_selecionado_marca = st.selectbox('Selecione o Mês para Verificar as Marcas', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique())
+        mes_selecionado_marca = st.selectbox('Selecione o Mês para Verificar as Marcas', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(),index=len(veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique()) - 10)
         
         # Filtrando os dados pelo mês selecionado
         veiculos_mes_marca = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado_marca]
@@ -158,11 +183,16 @@ else:
         )
         st.altair_chart(chart_veiculos_marca, use_container_width=True)
 
+        st.divider()
+
         # 4. Veículos Finalizados por Modelo
         st.subheader('Veículos Finalizados por Modelo')
-        mes_selecionado_modelo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_modelo_selectbox')
-        marca_selecionada = st.selectbox('Selecione a Marca', veiculos_data['marca'].unique(), key='marca_modelo_selectbox')
+        meses_disponiveis = veiculos_data['mes'].unique()
+        mes_selecionado_modelo = st.selectbox('Selecione o Mês', meses_disponiveis,index=list(meses_disponiveis).index(mes_atual) if mes_atual in meses_disponiveis else max(0, list(meses_disponiveis).index(sorted(meses_disponiveis)[-1])), key='mes_modelo_selectbox')
+        marca_selecionada = st.selectbox('Selecione a Marca',veiculos_data['marca'].dropna().unique(),  # Remove NaN e obtém valores únicos
+        key='marca_modelo_selectbox')
         data_filtrada_modelo = veiculos_data[(veiculos_data['mes'] == mes_selecionado_modelo) & (veiculos_data['marca'] == marca_selecionada)]
+    
         
         if data_filtrada_modelo.empty:
             st.warning("Não há dados disponíveis para a combinação selecionada de mês e marca.")
@@ -180,12 +210,16 @@ else:
             )
             st.altair_chart(chart_veiculos_modelo, use_container_width=True)
 
+            st.divider()
+
     elif dashboard == "Termômetro de Prazo":
         st.title("Termômetro de Prazo")
 
         # 1. Veículos Finalizados - Prazo
         st.subheader('Veículos Finalizados - Prazo')
-        mes_selecionado_prazo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
+        meses_disponiveis = veiculos_data['mes'].unique()
+        mes_selecionado_prazo = st.selectbox('Selecione o Mês', meses_disponiveis,index=list(meses_disponiveis).index(mes_atual) if mes_atual in meses_disponiveis else max(0, list(meses_disponiveis).index(sorted(meses_disponiveis)[-1])), key='mes_prazo_selectbox')
+        #mes_selecionado_prazo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_prazo_selectbox')
         data_filtrada_prazo = veiculos_data[veiculos_data['mes'] == mes_selecionado_prazo].copy()
         data_filtrada_prazo['dentro_prazo'] = (data_filtrada_prazo['dt_finalizacao'] <= data_filtrada_prazo['dt_contrato']).fillna(False)
         prazo_status = data_filtrada_prazo.groupby('dentro_prazo').size().reset_index(name='quantidade')
@@ -202,9 +236,13 @@ else:
         )
         st.altair_chart(chart_prazo, use_container_width=True)
 
+        st.divider()
+
          # 2. Prazo por Marca
         st.subheader('Prazo por Marca')
-        mes_selecionado_marca_prazo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_marca_prazo_selectbox')
+        meses_disponiveis = veiculos_data['mes'].unique()
+        mes_selecionado_marca_prazo = st.selectbox('Selecione o Mês', meses_disponiveis,index=list(meses_disponiveis).index(mes_atual) if mes_atual in meses_disponiveis else max(0, list(meses_disponiveis).index(sorted(meses_disponiveis)[-1])), key='mes_marca_prazo_selectbox')
+        #mes_selecionado_marca_prazo = st.selectbox('Selecione o Mês', veiculos_data['mes'].unique(), index=list(veiculos_data['mes'].unique()).index(mes_atual), key='mes_marca_prazo_selectbox')
         data_filtrada_marca_prazo = veiculos_data[veiculos_data['mes'] == mes_selecionado_marca_prazo].copy()
         data_filtrada_marca_prazo['dentro_prazo'] = (data_filtrada_marca_prazo['dt_finalizacao'] <= data_filtrada_marca_prazo['dt_contrato']).fillna(False)
         marca_prazo_status = data_filtrada_marca_prazo.groupby(['marca', 'dentro_prazo']).size().reset_index(name='quantidade')
@@ -220,9 +258,13 @@ else:
         )
         st.altair_chart(chart_marca_prazo, use_container_width=True)
 
+        st.divider()
+
         # 3. Mapa de Calor
         st.subheader('Mapa de Calor')
-        mes_selecionado_mapa_calor = st.selectbox('Selecione o Mês para Verificar o Mapa de Calor', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(), key='mes_mapa_calor_selectbox')
+        meses_disponiveis = veiculos_data['mes'].unique()
+        mes_selecionado_mapa_calor = st.selectbox('Selecione o Mês', meses_disponiveis,index=list(meses_disponiveis).index(mes_atual) if mes_atual in meses_disponiveis else max(0, list(meses_disponiveis).index(sorted(meses_disponiveis)[-1])))
+        #mes_selecionado_mapa_calor = st.selectbox('Selecione o Mês', veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique(),index=len(veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str).unique()) - 9)
         
         # Filtrando os dados pelo mês selecionado
         veiculos_mes_mapa_calor = veiculos_data[veiculos_data['dt_finalizacao'].dt.to_period('M').astype(str) == mes_selecionado_mapa_calor]
@@ -278,6 +320,8 @@ else:
             <p style="font-size: 36px; margin-top: 0;"><strong>{kits_faturados_d1}</strong></p>
         </div>
         """, unsafe_allow_html=True)
+         
+         st.divider()
 
         with col2:
          st.markdown(f"""
@@ -295,6 +339,8 @@ else:
         </div>
          """, unsafe_allow_html=True)
 
+         st.divider()
+
         with col3:
          st.markdown(f"""
         <div style="
@@ -310,6 +356,8 @@ else:
             <p style="font-size: 36px; margin-top: 0;"><strong>{kits_faturados_mes_atual}</strong></p>
         </div>
         """, unsafe_allow_html=True)
+         
+         st.divider()
          
         # 1. Selecione o Mês para Kits Faturados por Mês
         st.subheader('Kits Faturados por Mês')
@@ -337,6 +385,8 @@ else:
 
         st.altair_chart(chart_kits_mes, use_container_width=True) 
 
+        st.divider()
+
         # 2. Selecione o Mês para Veículos Finalizados por Semana
         st.subheader('Kits Finalizados por Semana')
         mes_selecionado = st.selectbox('Selecione o Mês', kits_data['dt_faturado'].dt.to_period('M').astype(str).unique())
@@ -363,6 +413,7 @@ else:
         )
         st.altair_chart(chart_veiculos_semana, use_container_width=True)
 
+        st.divider()
 
         st.subheader('Kits Finalizados por Dia')
 
@@ -401,9 +452,3 @@ else:
            st.altair_chart(chart_veiculos_dia, use_container_width=True)
         else:
            st.warning("Selecione um intervalo válido.")
-       
-
-      
-    
-
-
